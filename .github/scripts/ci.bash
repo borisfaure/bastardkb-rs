@@ -18,6 +18,7 @@ KEYMAPS=(
 declare -A EXAMPLES
 EXAMPLES=(
     [0]="blinky_led"
+    [1]="blinky_led_liatris"
 )
 
 
