@@ -1,4 +1,4 @@
-//use crate::hid::{HID_KB_CHANNEL, HID_MOUSE_CHANNEL};
+use crate::hid::HID_KB_CHANNEL;
 //use crate::mouse::MouseHandler;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
@@ -90,16 +90,16 @@ pub async fn layout_handler() {
                 while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
                     layout.event(event);
                 }
-                let custom_event = layout.tick();
+                let _custom_event = layout.tick();
                 let kb_report = generate_hid_kb_report(&mut layout);
                 if kb_report != old_kb_report {
-                    defmt::info!("KB Report: {:?}", defmt::Debug2Format(&kb_report));
-                    //HID_KB_CHANNEL.send(kb_report).await;
+                    //defmt::info!("KB Report: {:?}", defmt::Debug2Format(&kb_report));
+                    HID_KB_CHANNEL.send(kb_report).await;
                     old_kb_report = kb_report;
                 }
                 //mouse.process_event(custom_event);
                 //if let Some(mouse_report) = mouse.tick() {
-                //    defmt::info!("Mouse Report: {:?}", defmt::Debug2Format(&mouse_report));
+                //    //defmt::info!("Mouse Report: {:?}", defmt::Debug2Format(&mouse_report));
                 //    HID_MOUSE_CHANNEL.send(mouse_report).await;
                 //}
             }

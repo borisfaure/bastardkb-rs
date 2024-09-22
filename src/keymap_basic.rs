@@ -11,6 +11,6 @@ pub static LAYERS: keyberon::layout::Layers<10, 4, 1, CustomEvent> = keyberon::l
         [ Q  W  E  R  T      Y  U  I  O  P ],
         [ A  S  D  F  G      H  J  K  L  ; ],
         [ Z  X  C  V  B      N  M  ,  .  / ],
-        [ n  n  1  2  3      4  5  6  n  n ],
+        [ 3  n  1  2  n      n  4  5  n  n ],
     }
 };
