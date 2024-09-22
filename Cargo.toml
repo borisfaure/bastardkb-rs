@@ -8,9 +8,7 @@ edition = "2021"
 keymap_basic = []
 keymap_borisfaure = []
 keymap_test = []
-right = []
-left = []
-default = ["left", "keymap_borisfaure"]
+default = ["keymap_borisfaure"]
 
 [dependencies]
 embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }

@@ -11,6 +11,7 @@ use embassy_rp::usb::{Driver, InterruptHandler};
 use embassy_usb::class::hid::{HidReaderWriter, State};
 use embassy_usb::{Builder, Config as USBConfig};
 use futures::future;
+use side::detect_side;
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -34,9 +35,6 @@ mod keymap_borisfaure;
 /// Test layout for the keyboard
 #[cfg(feature = "keymap_test")]
 mod keymap_test;
-
-#[cfg(not(any(feature = "right", feature = "left",)))]
-compile_error!("Either feature \"right\" or \"left\" must be enabled.");
 
 #[cfg(not(any(
     feature = "keymap_borisfaure",
@@ -115,6 +113,9 @@ async fn main(spawner: Spawner) {
 
     builder.handler(&mut device_handler);
 
+    defmt::info!("Detecting side...");
+    detect_side(Input::new(p.PIN_15, Pull::Up));
+
     // Create classes on the builder.
     let hidkb_config = embassy_usb::class::hid::Config {
         report_descriptor: KeyboardReport::desc(),
@@ -154,6 +155,7 @@ async fn main(spawner: Spawner) {
 
     let layout_fut = layout::layout_handler();
     let matrix_fut = matrix_scanner(matrix);
+    defmt::info!("let's go!");
 
     future::join(
         future::join3(usb_fut, matrix_fut, layout_fut),

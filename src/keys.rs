@@ -1,5 +1,5 @@
 use crate::layout::LAYOUT_CHANNEL;
-//use crate::side::{is_host, SIDE_CHANNEL};
+use crate::side::{is_host, is_right};
 use embassy_rp::gpio::{Input, Output};
 use embassy_time::{Duration, Ticker};
 use keyberon::debounce::Debouncer;
@@ -50,39 +50,27 @@ impl<'a> Matrix<'a> {
     }
 }
 
-/// Transform key events from other keyboard half by mirroring coordinates
-#[cfg(feature = "right")]
-fn transform_keypress_coordinates(e: Event) -> Event {
-    // mirror coordinates for events for right half
-    e.transform(|i, j| (i, 9 - j))
-}
-
-/// Do not transform key events from other keyboard half
-#[cfg(feature = "left")]
-fn transform_keypress_coordinates(e: Event) -> Event {
-    e
-}
-
 /// Loop that scans the keyboard matrix
 pub async fn matrix_scanner(mut matrix: Matrix<'_>) {
     let mut ticker = Ticker::every(Duration::from_hz(REFRESH_RATE.into()));
     let mut debouncer = Debouncer::new(matrix_state_new(), matrix_state_new(), NB_BOUNCE);
 
     loop {
-        //let is_host = is_host();
-        for event in debouncer
-            .events(matrix.scan())
-            .map(transform_keypress_coordinates)
-        {
+        let transform = if is_right() {
+            |e: Event| e.transform(|i, j| (i, 9 - j))
+        } else {
+            |e| e
+        };
+        let is_host = is_host();
+
+        for event in debouncer.events(matrix.scan()).map(transform) {
             defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
             LAYOUT_CHANNEL.send(event).await;
-            /*
             if is_host {
                 LAYOUT_CHANNEL.send(event).await;
             } else {
-                SIDE_CHANNEL.send(event).await;
+                //SIDE_CHANNEL.send(event).await;
             };
-            */
         }
 
         ticker.next().await;

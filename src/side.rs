@@ -1,9 +1,24 @@
 use core::sync::atomic::{AtomicBool, Ordering};
 use defmt::*;
+use embassy_rp::gpio::Input;
 use embassy_usb::Handler;
 
 /// Device configured flag
 static CONFIGURED: AtomicBool = AtomicBool::new(false);
+
+/// Side of the device
+/// True if this is the right side
+static SIDE: AtomicBool = AtomicBool::new(false);
+
+pub fn detect_side<'a>(pin: Input<'a>) {
+    let side = pin.is_high();
+    defmt::info!("Side detected: is_right: {}", side);
+    SIDE.store(side, Ordering::Relaxed);
+}
+
+pub fn is_right() -> bool {
+    SIDE.load(Ordering::Relaxed)
+}
 
 /// Whether the device is the host or not
 pub fn is_host() -> bool {

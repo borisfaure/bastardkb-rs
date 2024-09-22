@@ -4,11 +4,6 @@ set -e
 set -x
 set -u
 
-declare -A SIDES
-SIDES=(
-    [0]="right"
-    [1]="left"
-)
 declare -A KEYMAPS
 KEYMAPS=(
     [0]="keymap_borisfaure"
@@ -28,12 +23,9 @@ run_doc() {
     do
         cargo doc --example "$EXAMPLE"
     done
-    for SIDE in "${SIDES[@]}"
+    for KEYMAP in "${KEYMAPS[@]}"
     do
-        for KEYMAP in "${KEYMAPS[@]}"
-        do
-            cargo doc --no-default-features --features "$SIDE,$KEYMAP"
-        done
+        cargo doc --no-default-features --features "$KEYMAP"
     done
 }
 
@@ -48,12 +40,9 @@ run_clippy() {
     do
         cargo clippy --example "$EXAMPLE" -- -D warnings
     done
-    for SIDE in "${SIDES[@]}"
+    for KEYMAP in "${KEYMAPS[@]}"
     do
-        for KEYMAP in "${KEYMAPS[@]}"
-        do
-            cargo clippy --no-default-features --features "$SIDE,$KEYMAP" -- -D warnings
-        done
+        cargo clippy --no-default-features --features "$KEYMAP" -- -D warnings
     done
 }
 
@@ -62,23 +51,17 @@ run_check() {
     do
         cargo check --example "$EXAMPLE"
     done
-    for SIDE in "${SIDES[@]}"
+    for KEYMAP in "${KEYMAPS[@]}"
     do
-        for KEYMAP in "${KEYMAPS[@]}"
-        do
-            cargo check --no-default-features --features "$SIDE,$KEYMAP"
-        done
+        cargo check --no-default-features --features "$KEYMAP"
     done
 }
 
 run_test() {
     cargo test
-    for SIDE in "${SIDES[@]}"
+    for KEYMAP in "${KEYMAPS[@]}"
     do
-        for KEYMAP in "${KEYMAPS[@]}"
-        do
-            cargo test --no-default-features --features "$SIDE,$KEYMAP"
-        done
+        cargo test --no-default-features --features "$KEYMAP"
     done
 }
 
@@ -88,12 +71,9 @@ run_build() {
     do
         cargo build --example "$EXAMPLE"
     done
-    for SIDE in "${SIDES[@]}"
+    for KEYMAP in "${KEYMAPS[@]}"
     do
-        for KEYMAP in "${KEYMAPS[@]}"
-        do
-            cargo build --no-default-features --features "$SIDE,$KEYMAP"
-        done
+        cargo build --no-default-features --features "$KEYMAP"
     done
 }
 
@@ -103,12 +83,9 @@ run_build_release() {
     do
         cargo build --release --example "$EXAMPLE"
     done
-    for SIDE in "${SIDES[@]}"
+    for KEYMAP in "${KEYMAPS[@]}"
     do
-        for KEYMAP in "${KEYMAPS[@]}"
-        do
-            cargo build --release --no-default-features --features "$SIDE,$KEYMAP"
-        done
+        cargo build --release --no-default-features --features "$KEYMAP"
     done
 }
 
