@@ -39,6 +39,7 @@ impl<'a> Matrix<'a> {
         let mut matrix_state = [[false; COLS]; ROWS];
         for col in 0..COLS {
             self.cols[col].set_low();
+            cortex_m::asm::delay(100);
             for row in 0..ROWS {
                 if self.rows[row].is_low() {
                     matrix_state[row][col] = true;
