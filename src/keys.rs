@@ -1,5 +1,5 @@
+use crate::device::{is_host, is_right};
 use crate::layout::LAYOUT_CHANNEL;
-use crate::side::{is_host, is_right};
 use embassy_rp::gpio::{Input, Output};
 use embassy_time::{Duration, Ticker};
 use keyberon::debounce::Debouncer;

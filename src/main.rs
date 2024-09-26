@@ -3,6 +3,7 @@
 
 use crate::hid::hid_kb_writer_handler;
 use crate::keys::{matrix_scanner, Matrix};
+use device::detect_side;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
@@ -11,10 +12,11 @@ use embassy_rp::usb::{Driver, InterruptHandler};
 use embassy_usb::class::hid::{HidReaderWriter, State};
 use embassy_usb::{Builder, Config as USBConfig};
 use futures::future;
-use side::detect_side;
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
 use {defmt_rtt as _, panic_probe as _};
 
+/// Device
+mod device;
 /// USB HID configuration
 mod hid;
 /// Key handling
@@ -98,7 +100,7 @@ async fn main(spawner: Spawner) {
     let mut msos_descriptor = [0; 256];
     let mut control_buf = [0; 256];
 
-    let mut device_handler = side::DeviceHandler::new();
+    let mut device_handler = device::DeviceHandler::new();
 
     let mut state_kb = State::new();
 

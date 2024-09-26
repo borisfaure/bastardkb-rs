@@ -1,5 +1,5 @@
+use crate::device::is_host;
 use crate::layout::LAYOUT_CHANNEL;
-use crate::side::is_host;
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::peripherals::USB;
