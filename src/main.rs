@@ -3,7 +3,6 @@
 
 use crate::hid::hid_kb_writer_handler;
 use crate::keys::{matrix_scanner, Matrix};
-use device::detect_side;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
@@ -116,7 +115,7 @@ async fn main(spawner: Spawner) {
     builder.handler(&mut device_handler);
 
     defmt::info!("Detecting side...");
-    detect_side(Input::new(p.PIN_15, Pull::Up));
+    let is_right = device::is_right(Input::new(p.PIN_15, Pull::Up));
 
     // Create classes on the builder.
     let hidkb_config = embassy_usb::class::hid::Config {
@@ -156,7 +155,7 @@ async fn main(spawner: Spawner) {
     let matrix = Matrix::new(rows, cols);
 
     let layout_fut = layout::layout_handler();
-    let matrix_fut = matrix_scanner(matrix);
+    let matrix_fut = matrix_scanner(matrix, is_right);
     defmt::info!("let's go!");
 
     future::join(

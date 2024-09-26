@@ -1,4 +1,4 @@
-use crate::device::{is_host, is_right};
+use crate::device::is_host;
 use crate::layout::LAYOUT_CHANNEL;
 use embassy_rp::gpio::{Input, Output};
 use embassy_time::{Duration, Ticker};
@@ -51,12 +51,12 @@ impl<'a> Matrix<'a> {
 }
 
 /// Loop that scans the keyboard matrix
-pub async fn matrix_scanner(mut matrix: Matrix<'_>) {
+pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
     let mut ticker = Ticker::every(Duration::from_hz(REFRESH_RATE.into()));
     let mut debouncer = Debouncer::new(matrix_state_new(), matrix_state_new(), NB_BOUNCE);
 
     loop {
-        let transform = if is_right() {
+        let transform = if is_right {
             |e: Event| e.transform(|i, j| (i, 9 - j))
         } else {
             |e| e
