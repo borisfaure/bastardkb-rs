@@ -6,8 +6,9 @@ use crate::keys::{matrix_scanner, Matrix};
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
-use embassy_rp::peripherals::USB;
-use embassy_rp::usb::{Driver, InterruptHandler};
+use embassy_rp::peripherals::{PIO1, USB};
+use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
+use embassy_rp::usb::{Driver, InterruptHandler as USBInterruptHandler};
 use embassy_usb::class::hid::{HidReaderWriter, State};
 use embassy_usb::{Builder, Config as USBConfig};
 use futures::future;
@@ -47,7 +48,10 @@ compile_error!(
 );
 
 bind_interrupts!(struct Irqs {
-    USBCTRL_IRQ => InterruptHandler<USB>;
+    USBCTRL_IRQ => USBInterruptHandler<USB>;
+});
+bind_interrupts!(struct PioIrq1 {
+    PIO1_IRQ_0 => PioInterruptHandler<PIO1>;
 });
 
 /// USB VID based on
@@ -152,15 +156,27 @@ async fn main(spawner: Spawner) {
         Output::new(p.PIN_7, Level::High),  // C5
         Output::new(p.PIN_8, Level::High),  // C6
     ];
-    let matrix = Matrix::new(rows, cols);
 
+    let pio1 = Pio::new(p.PIO1, PioIrq1);
+    let matrix = Matrix::new(rows, cols);
+    let mut status_led = Output::new(p.PIN_24, Level::Low);
+
+    let full_duplex_fut = side::full_duplex_comm(
+        pio1.common,
+        pio1.sm0,
+        pio1.sm1,
+        p.PIN_1,
+        p.PIN_29,
+        &mut status_led,
+        is_right,
+    );
     let layout_fut = layout::layout_handler();
     let matrix_fut = matrix_scanner(matrix, is_right);
     defmt::info!("let's go!");
 
     future::join(
         future::join3(usb_fut, matrix_fut, layout_fut),
-        future::join(hid_kb_reader_fut, hid_kb_writer_fut),
+        future::join3(hid_kb_reader_fut, hid_kb_writer_fut, full_duplex_fut),
     )
     .await;
 }

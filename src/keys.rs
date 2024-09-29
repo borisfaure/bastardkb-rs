@@ -1,5 +1,6 @@
 use crate::device::is_host;
 use crate::layout::LAYOUT_CHANNEL;
+use crate::side::SIDE_CHANNEL;
 use embassy_rp::gpio::{Input, Output};
 use embassy_time::{Duration, Ticker};
 use keyberon::debounce::Debouncer;
@@ -70,7 +71,7 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
             if is_host {
                 LAYOUT_CHANNEL.send(event).await;
             } else {
-                //SIDE_CHANNEL.send(event).await;
+                SIDE_CHANNEL.send(event).await;
             };
         }
 
