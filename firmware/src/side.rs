@@ -6,7 +6,8 @@ use embassy_rp::peripherals::{PIN_1, PIN_29, PIO1};
 use embassy_rp::pio::{self, Direction, FifoJoin, ShiftDirection, StateMachine};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use fixed::{traits::ToFixed, types::U56F8};
-use keyberon::layout::Event;
+use keyberon::layout::Event as KBEvent;
+use utils::serde::{deserialize, serialize, Event};
 
 pub const USART_SPEED: u64 = 460800;
 
@@ -14,23 +15,6 @@ pub const USART_SPEED: u64 = 460800;
 const NB_EVENTS: usize = 64;
 /// Channel to send `keyberon::layout::event` events to the layout handler
 pub static SIDE_CHANNEL: Channel<CriticalSectionRawMutex, Event, NB_EVENTS> = Channel::new();
-
-/// Deserialize a key event from the serial line
-fn deserialize(bytes: u32) -> Result<Event, ()> {
-    match bytes.to_le_bytes() {
-        [b'P', i, j, b'\n'] => Ok(Event::Press(i, j)),
-        [b'R', i, j, b'\n'] => Ok(Event::Release(i, j)),
-        _ => Err(()),
-    }
-}
-
-/// Serialize a key event
-fn serialize(e: Event) -> u32 {
-    match e {
-        Event::Press(i, j) => u32::from_le_bytes([b'P', i, j, b'\n']),
-        Event::Release(i, j) => u32::from_le_bytes([b'R', i, j, b'\n']),
-    }
-}
 
 const TX: usize = 0;
 const RX: usize = 1;
@@ -76,9 +60,14 @@ pub async fn full_duplex_comm<'a>(
                 status_led.set_low();
                 defmt::info!("got byte: {:x}", x);
                 match deserialize(x) {
-                    Ok(event) => {
-                        LAYOUT_CHANNEL.send(event).await;
-                    }
+                    Ok(event) => match event {
+                        Event::Press(i, j) => {
+                            LAYOUT_CHANNEL.send(KBEvent::Press(i, j)).await;
+                        }
+                        Event::Release(i, j) => {
+                            LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
+                        }
+                    },
                     Err(()) => {
                         defmt::warn!("Invalid event received: {:?}", x);
                     }

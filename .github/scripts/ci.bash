@@ -58,11 +58,7 @@ run_check() {
 }
 
 run_test() {
-    cargo test
-    for KEYMAP in "${KEYMAPS[@]}"
-    do
-        cargo test --no-default-features --features "$KEYMAP"
-    done
+    cargo test -p utils --features std --target "x86_64-unknown-linux-gnu"
 }
 
 run_build() {

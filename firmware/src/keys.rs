@@ -4,7 +4,8 @@ use crate::side::SIDE_CHANNEL;
 use embassy_rp::gpio::{Input, Output};
 use embassy_time::{Duration, Ticker};
 use keyberon::debounce::Debouncer;
-use keyberon::layout::Event;
+use keyberon::layout::Event as KBEvent;
+use utils::serde::Event;
 
 /// Keyboard matrix rows
 const ROWS: usize = 4;
@@ -59,7 +60,7 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
 
     loop {
         let transform = if is_right {
-            |e: Event| e.transform(|i, j| (i, 9 - j))
+            |e: KBEvent| e.transform(|i, j| (i, 9 - j))
         } else {
             |e| e
         };
@@ -71,7 +72,14 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
             if is_host {
                 LAYOUT_CHANNEL.send(event).await;
             } else {
-                SIDE_CHANNEL.send(event).await;
+                match event {
+                    KBEvent::Press(i, j) => {
+                        SIDE_CHANNEL.send(Event::Press(i, j)).await;
+                    }
+                    KBEvent::Release(i, j) => {
+                        SIDE_CHANNEL.send(Event::Release(i, j)).await;
+                    }
+                }
             };
         }
 

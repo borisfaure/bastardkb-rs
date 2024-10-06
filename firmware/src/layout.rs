@@ -3,7 +3,8 @@ use crate::hid::HID_KB_CHANNEL;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
-use keyberon::layout::{Event, Layout};
+use keyberon::key_code::KeyCode;
+use keyberon::layout::{Event as KBEvent, Layout};
 use usbd_hid::descriptor::KeyboardReport;
 
 /// Basic layout for the keyboard
@@ -23,12 +24,11 @@ const REFRESH_RATE_MS: u64 = 1;
 /// Number of events in the layout channel
 const NB_EVENTS: usize = 64;
 /// Channel to send `keyberon::layout::event` events to the layout handler
-pub static LAYOUT_CHANNEL: Channel<CriticalSectionRawMutex, Event, NB_EVENTS> = Channel::new();
+pub static LAYOUT_CHANNEL: Channel<CriticalSectionRawMutex, KBEvent, NB_EVENTS> = Channel::new();
 
-#[derive(Debug)]
 /// Custom events for the layout, mostly mouse events
-#[allow(clippy::enum_variant_names)]
-#[allow(dead_code)]
+//#[allow(clippy::enum_variant_names)]
+#[derive(Debug)]
 pub enum CustomEvent {
     /// Mouse move up
     MouseUp,
@@ -51,7 +51,7 @@ pub enum CustomEvent {
 }
 
 /// Set a report as an error based on keycode `kc`
-fn keyboard_report_set_error(report: &mut KeyboardReport, kc: keyberon::key_code::KeyCode) {
+fn keyboard_report_set_error(report: &mut KeyboardReport, kc: KeyCode) {
     report.modifier = 0;
     report.keycodes = [kc as u8; 6];
     defmt::error!("Error: {:?}", defmt::Debug2Format(&kc));
