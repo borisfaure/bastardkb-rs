@@ -3,16 +3,19 @@
 
 use crate::hid::hid_kb_writer_handler;
 use crate::keys::{matrix_scanner, Matrix};
+use crate::mouse::MouseHandler;
+use crate::pmw3360::Pmw3360;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIO1, USB};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
+use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_rp::usb::{Driver, InterruptHandler as USBInterruptHandler};
-use embassy_usb::class::hid::{HidReaderWriter, State};
+use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, HidWriter, State};
 use embassy_usb::{Builder, Config as USBConfig};
 use futures::future;
-use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
+use usbd_hid::descriptor::{KeyboardReport, MouseReport, SerializedDescriptor};
 use {defmt_rtt as _, panic_probe as _};
 
 /// Device
@@ -23,6 +26,10 @@ mod hid;
 mod keys;
 /// Layout events processing
 mod layout;
+/// Mouse handling
+mod mouse;
+/// PMW3360 sensor
+mod pmw3360;
 /// Handling the other half of the keyboard
 mod side;
 
@@ -106,6 +113,7 @@ async fn main(spawner: Spawner) {
     let mut device_handler = device::DeviceHandler::new();
 
     let mut state_kb = State::new();
+    let mut state_mouse = State::new();
 
     let mut builder = Builder::new(
         driver,
@@ -122,13 +130,21 @@ async fn main(spawner: Spawner) {
     let is_right = device::is_right(Input::new(p.PIN_15, Pull::Up));
 
     // Create classes on the builder.
-    let hidkb_config = embassy_usb::class::hid::Config {
+    let hidkb_config = HidConfig {
         report_descriptor: KeyboardReport::desc(),
         request_handler: None,
         poll_ms: 60,
         max_packet_size: 8,
     };
     let hidkb = HidReaderWriter::<_, 64, 64>::new(&mut builder, &mut state_kb, hidkb_config);
+
+    let hidm_config = HidConfig {
+        report_descriptor: MouseReport::desc(),
+        request_handler: None,
+        poll_ms: 60,
+        max_packet_size: 4,
+    };
+    let hid_mouse = HidWriter::<_, 64>::new(&mut builder, &mut state_mouse, hidm_config);
 
     // Build the builder.
     let mut usb = builder.build();
@@ -172,11 +188,46 @@ async fn main(spawner: Spawner) {
     );
     let layout_fut = layout::layout_handler();
     let matrix_fut = matrix_scanner(matrix, is_right);
+    let mut mouse_handler = MouseHandler::new(hid_mouse);
+    let mouse_fut = mouse_handler.run();
+
     defmt::info!("let's go!");
 
-    future::join(
-        future::join3(usb_fut, matrix_fut, layout_fut),
-        future::join3(hid_kb_reader_fut, hid_kb_writer_fut, full_duplex_fut),
-    )
-    .await;
+    if is_right {
+        let mut ball = {
+            let sclk = p.PIN_22; // B1
+            let mosi = p.PIN_23; // B2
+            let miso = p.PIN_20; // B3
+            let cs = Output::new(p.PIN_16, Level::High); // F0
+            let tx_dma = p.DMA_CH0;
+            let rx_dma = p.DMA_CH1;
+            let mut spi_config = SpiConfig::default();
+            spi_config.frequency = 7_000_000;
+            spi_config.polarity = Polarity::IdleHigh;
+            spi_config.phase = Phase::CaptureOnSecondTransition;
+            let ball_spi = Spi::new(p.SPI0, sclk, mosi, miso, tx_dma, rx_dma, spi_config);
+            let mut ball = Pmw3360::new(ball_spi, cs);
+
+            let res = ball.start().await;
+            if let Err(e) = res {
+                defmt::error!("Error: {:?}", defmt::Debug2Format(&e));
+            }
+            ball
+        };
+        let ball_sensor_fut = ball.run();
+        future::join4(
+            future::join(usb_fut, full_duplex_fut),
+            future::join(matrix_fut, layout_fut),
+            future::join(hid_kb_reader_fut, hid_kb_writer_fut),
+            future::join(ball_sensor_fut, mouse_fut),
+        )
+        .await;
+    } else {
+        future::join3(
+            future::join(usb_fut, full_duplex_fut),
+            future::join(matrix_fut, layout_fut),
+            future::join3(hid_kb_reader_fut, hid_kb_writer_fut, mouse_fut),
+        )
+        .await;
+    }
 }

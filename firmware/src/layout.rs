@@ -1,10 +1,10 @@
 use crate::hid::HID_KB_CHANNEL;
-//use crate::mouse::MouseHandler;
+use crate::mouse::{MouseCommand, MOUSE_CMD_CHANNEL};
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
 use keyberon::key_code::KeyCode;
-use keyberon::layout::{Event as KBEvent, Layout};
+use keyberon::layout::{CustomEvent as KbCustomEvent, Event as KBEvent, Layout};
 use usbd_hid::descriptor::KeyboardReport;
 
 /// Basic layout for the keyboard
@@ -30,24 +30,14 @@ pub static LAYOUT_CHANNEL: Channel<CriticalSectionRawMutex, KBEvent, NB_EVENTS> 
 //#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum CustomEvent {
-    /// Mouse move up
-    MouseUp,
-    /// Mouse move Right
-    MouseRight,
-    /// Mouse move down
-    MouseDown,
-    /// Mouse move left
-    MouseLeft,
     /// Mouse left click
     MouseLeftClick,
     /// Mouse right click
     MouseRightClick,
-    /// Mouse middle click
-    MouseMiddleClick,
-    /// Mouse scroll up
-    MouseScrollUp,
-    /// Mouse scroll down
-    MouseScrollDown,
+    /// Mouse Wheel click
+    MouseWheelClick,
+    /// Ball is wheel
+    BallIsWheel,
 }
 
 /// Set a report as an error based on keycode `kc`
@@ -76,11 +66,47 @@ fn generate_hid_kb_report(layout: &mut KBLayout) -> KeyboardReport {
     report
 }
 
+/// Process a custom event from the layout
+async fn process_custom_event(event: KbCustomEvent<CustomEvent>) {
+    match event {
+        KbCustomEvent::Press(CustomEvent::MouseLeftClick) => {
+            MOUSE_CMD_CHANNEL.send(MouseCommand::PressLeftClick).await;
+        }
+        KbCustomEvent::Release(CustomEvent::MouseLeftClick) => {
+            MOUSE_CMD_CHANNEL.send(MouseCommand::ReleaseLeftClick).await;
+        }
+        KbCustomEvent::Press(CustomEvent::MouseRightClick) => {
+            MOUSE_CMD_CHANNEL.send(MouseCommand::PressRightClick).await;
+        }
+        KbCustomEvent::Release(CustomEvent::MouseRightClick) => {
+            MOUSE_CMD_CHANNEL
+                .send(MouseCommand::ReleaseRightClick)
+                .await;
+        }
+        KbCustomEvent::Press(CustomEvent::MouseWheelClick) => {
+            MOUSE_CMD_CHANNEL.send(MouseCommand::PressWheelClick).await;
+        }
+        KbCustomEvent::Release(CustomEvent::MouseWheelClick) => {
+            MOUSE_CMD_CHANNEL
+                .send(MouseCommand::ReleaseWheelClick)
+                .await;
+        }
+        KbCustomEvent::Press(CustomEvent::BallIsWheel) => {
+            MOUSE_CMD_CHANNEL.send(MouseCommand::PressBallIsWheel).await;
+        }
+        KbCustomEvent::Release(CustomEvent::BallIsWheel) => {
+            MOUSE_CMD_CHANNEL
+                .send(MouseCommand::ReleaseBallIsWheel)
+                .await;
+        }
+        KbCustomEvent::NoEvent => (),
+    }
+}
+
 /// Keyboard layout handler
 /// Handles layout events into the keymap and sends HID reports to the HID handler
 pub async fn layout_handler() {
     let mut layout = Layout::new(&LAYERS);
-    //let mut mouse = MouseHandler::new();
     let mut old_kb_report = KeyboardReport::default();
     let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
     loop {
@@ -90,18 +116,14 @@ pub async fn layout_handler() {
                 while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
                     layout.event(event);
                 }
-                let _custom_event = layout.tick();
+                let custom_event = layout.tick();
+                process_custom_event(custom_event).await;
                 let kb_report = generate_hid_kb_report(&mut layout);
                 if kb_report != old_kb_report {
                     //defmt::info!("KB Report: {:?}", defmt::Debug2Format(&kb_report));
                     HID_KB_CHANNEL.send(kb_report).await;
                     old_kb_report = kb_report;
                 }
-                //mouse.process_event(custom_event);
-                //if let Some(mouse_report) = mouse.tick() {
-                //    //defmt::info!("Mouse Report: {:?}", defmt::Debug2Format(&mouse_report));
-                //    HID_MOUSE_CHANNEL.send(mouse_report).await;
-                //}
             }
             Either::Second(event) => {
                 layout.event(event);

@@ -107,9 +107,7 @@ impl HidRequestHandler<'_> {
 pub async fn hid_kb_writer_handler<'a>(mut writer: HidWriter<'a, 'a>) {
     loop {
         let hid_report = HID_KB_CHANNEL.receive().await;
-        let is_host = is_host();
-        defmt::info!("is_host: {:?}", is_host);
-        if is_host {
+        if is_host() {
             match writer.write_serialize(&hid_report).await {
                 Ok(()) => {}
                 Err(e) => warn!("Failed to send report: {:?}", e),
