@@ -117,10 +117,10 @@ impl<'a> MouseHandler<'a> {
     fn generate_hid_report(&mut self) -> MouseReport {
         let mut report = MOUSE_REPORT_EMPTY;
         if self.ball_is_wheel {
-            if self.dy > 0 {
-                report.wheel = 1;
-            } else if self.dy < 0 {
-                report.wheel = -1;
+            match self.dy {
+                y if y > 0 => report.pan = 1,
+                y if y < 0 => report.pan = -1,
+                _ => {}
             }
         } else {
             report.x = self.dx;
