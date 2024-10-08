@@ -88,12 +88,12 @@ fn task_tx<'a>(
     tx_pin: &mut PioPin<'a>,
 ) -> SmTx<'a> {
     let tx_prog = pio_proc::pio_file!("src/tx.pio");
-    sm_tx.set_pins(Level::High, &[&tx_pin]);
-    sm_tx.set_pin_dirs(Direction::Out, &[&tx_pin]);
+    sm_tx.set_pins(Level::High, &[tx_pin]);
+    sm_tx.set_pin_dirs(Direction::Out, &[tx_pin]);
 
     let mut cfg = embassy_rp::pio::Config::default();
     cfg.set_out_pins(&[tx_pin]);
-    cfg.set_set_pins(&[&tx_pin]);
+    cfg.set_set_pins(&[tx_pin]);
     cfg.use_program(&common.load_program(&tx_prog.program), &[]);
     cfg.shift_out.auto_fill = false;
     cfg.shift_out.direction = ShiftDirection::Right;
@@ -116,10 +116,10 @@ fn task_rx<'a>(
     let mut cfg = embassy_rp::pio::Config::default();
     cfg.use_program(&common.load_program(&rx_prog.program), &[]);
 
-    sm_rx.set_pins(Level::High, &[&rx_pin]);
-    cfg.set_in_pins(&[&rx_pin]);
-    cfg.set_jmp_pin(&rx_pin);
-    sm_rx.set_pin_dirs(Direction::In, &[&rx_pin]);
+    sm_rx.set_pins(Level::High, &[rx_pin]);
+    cfg.set_in_pins(&[rx_pin]);
+    cfg.set_jmp_pin(rx_pin);
+    sm_rx.set_pin_dirs(Direction::In, &[rx_pin]);
 
     cfg.clock_divider = pio_freq();
     cfg.shift_in.auto_fill = false;
