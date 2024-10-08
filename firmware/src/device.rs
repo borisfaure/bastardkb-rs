@@ -6,7 +6,7 @@ use embassy_usb::Handler;
 /// Device configured flag
 static CONFIGURED: AtomicBool = AtomicBool::new(false);
 
-pub fn is_right<'a>(pin: Input<'a>) -> bool {
+pub fn is_right(pin: Input) -> bool {
     let is_right = pin.is_high();
     defmt::info!("Side detected: is_right: {}", is_right);
     is_right
