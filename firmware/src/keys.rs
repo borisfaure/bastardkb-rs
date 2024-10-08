@@ -39,15 +39,15 @@ impl<'a> Matrix<'a> {
 
     fn scan(&mut self) -> MatrixState {
         let mut matrix_state = [[false; COLS]; ROWS];
-        for col in 0..COLS {
-            self.cols[col].set_low();
+        for (c, col) in self.cols.iter_mut().enumerate() {
+            col.set_low();
             cortex_m::asm::delay(100);
-            for row in 0..ROWS {
-                if self.rows[row].is_low() {
-                    matrix_state[row][col] = true;
+            for (r, row) in self.rows.iter().enumerate() {
+                if row.is_low() {
+                    matrix_state[r][c] = true;
                 }
             }
-            self.cols[col].set_high();
+            col.set_high();
         }
         matrix_state
     }
