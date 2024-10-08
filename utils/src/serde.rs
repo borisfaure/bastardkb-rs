@@ -6,12 +6,17 @@ pub enum Event {
     Release(u8, u8),
 }
 
+#[derive(Debug)]
+pub enum Error {
+    Deserialization,
+}
+
 /// Deserialize a key event from the serial line
-pub fn deserialize(bytes: u32) -> Result<Event, ()> {
+pub fn deserialize(bytes: u32) -> Result<Event, Error> {
     match bytes.to_le_bytes() {
         [b'P', i, j, b'\n'] => Ok(Event::Press(i, j)),
         [b'R', i, j, b'\n'] => Ok(Event::Release(i, j)),
-        _ => Err(()),
+        _ => Err(Error::Deserialization),
     }
 }
 

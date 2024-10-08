@@ -68,7 +68,7 @@ pub async fn full_duplex_comm<'a>(
                             LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
                         }
                     },
-                    Err(()) => {
+                    Err(_) => {
                         defmt::warn!("Invalid event received: {:?}", x);
                     }
                 }
