@@ -83,8 +83,6 @@ const HT_3_N: Action<CustomEvent> = ht!(l(L_NUM), k(N));
 const HT_3_V: Action<CustomEvent> = ht!(l(L_NUM), k(V));
 /// Layer 3 (numbers/Fx) when held, or J
 const HT_3_J: Action<CustomEvent> = ht!(l(L_NUM), k(J));
-/// Layer 3 (numbers/Fx) when held, or RAlt
-const HT_3_RA: Action<CustomEvent> = ht!(l(L_NUM), k(RAlt));
 /// Layer 3 (numbers/Fx) when held, or Escape
 const HT_3_ESC: Action<CustomEvent> = ht!(l(L_NUM), k(Escape));
 
@@ -96,6 +94,8 @@ const HT_4_Y: Action<CustomEvent> = ht!(l(L_MISC), k(Y));
 const HT_4_B: Action<CustomEvent> = ht!(l(L_MISC), k(B));
 /// Layer 4 (misc) when held, or K
 const HT_4_K: Action<CustomEvent> = ht!(l(L_MISC), k(K));
+/// Layer 4 (misc) when held, or I
+const HT_4_I: Action<CustomEvent> = ht!(l(L_MISC), k(I));
 
 /// Layer 5 (tmux) when held, or F
 const HT_5_F: Action<CustomEvent> = ht!(l(L_TMUX), k(F));
@@ -307,72 +307,62 @@ const T_9: Action<CustomEvent> = seq(&[Press(LCtrl), Tap(A), Release(LCtrl), Tap
 /// Tmux: go to window 0
 const T_0: Action<CustomEvent> = seq(&[Press(LCtrl), Tap(A), Release(LCtrl), Tap(Kb0)].as_slice());
 
-/// Mouse move up
-const MU: Action<CustomEvent> = Action::Custom(MouseUp);
-/// Mouse move down
-const MD: Action<CustomEvent> = Action::Custom(MouseDown);
-/// Mouse move left
-const ML: Action<CustomEvent> = Action::Custom(MouseLeft);
-/// Mouse move right
-const MR: Action<CustomEvent> = Action::Custom(MouseRight);
 /// Mouse left click
 const MLC: Action<CustomEvent> = Action::Custom(MouseLeftClick);
 /// Mouse right click
 const MRC: Action<CustomEvent> = Action::Custom(MouseRightClick);
-/// Mouse middle click
-const MMC: Action<CustomEvent> = Action::Custom(MouseMiddleClick);
-/// Mouse scroll up
-const MSU: Action<CustomEvent> = Action::Custom(MouseScrollUp);
-/// Mouse scroll down
-const MSD: Action<CustomEvent> = Action::Custom(MouseScrollDown);
+/// Mouse wheel click
+const MWC: Action<CustomEvent> = Action::Custom(MouseWheelClick);
+/// Ball is Wheel
+const BIW: Action<CustomEvent> = Action::Custom(BallIsWheel);
 
 #[rustfmt::skip]
 /// Layout
 pub static LAYERS: keyberon::layout::Layers<10, 4, 9, CustomEvent> = keyberon::layout::layout! {
    { /* 0: Coleman-DH */
 [  Q         {HT_W_W}   F          P         {HT_4_B}    {HT_4_K}   L         U        {HT_W_Y}     ;        ],
-[ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E         I          {HT_C_O}  ],
+[ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E        {HT_4_I}    {HT_C_O}  ],
 [ {HT_S_Z}   {HT_A_X}   C          D         {HT_3_V}    {HT_3_J}   H         ,        {HT_A_DOT}  {HT_S_SL} ],
-[ {VCAPS}    {VNUM}    {HT_3_ESC} {HT_1_SP}   Tab         Enter    {HT_2_BS} {HT_3_RA}  n           n        ],
+[  Tab       {VNUM}    {HT_3_ESC} {HT_1_SP}  {VCAPS}      n         n        {HT_2_BS}  n           Enter    ],
     } { /* 1: LOWER */
-        [ !  #  $    '(' ')'      ^       &      {S_INS}    *      ~   ],
-        [ =  -  '`'  '{' '}'      n       n       PgUp    PgDown  '\\' ],
-        [ @  &  %    '[' ']'      n       n         n      '\''    '"' ],
-        [ t  t  n     n   n       Enter  Space   Delete     t      t   ],
+        [ !  #  $    '(' ')'        ^  &  {S_INS}    *      ~   ],
+        [ =  -  '`'  '{' '}'        n  n   PgUp    PgDown  '\\' ],
+        [ @  &  %    '[' ']'        n  n     n      '\''    '"' ],
+        [ n  t  n     n   t         t  t   Space     t     Enter],
     } { /* 2: RAISE */
         [ {QWERTY}  n    {E_ACU}  {E_CIR}  {E_GRV}      PgUp   {U_GRV}  {I_CIR}  {O_CIR}  Home  ],
         [ {A_GRV}  '_'    +        &        |           RAlt    Left     Up       Down    Right ],
         [ {EURO}   {OE}  {C_CED}  {CAPS}   {NUMLCK}     PgDown  Menu    PScreen  {DOTS}   End   ],
-        [ t         t    Escape   BSpace    Tab         n       n        n        t       t     ],
+        [ Tab       t    Escape   BSpace    t           t       t        n        t       n     ],
     } { /* 3: NUMBERS Fx */
-        [ .  4  5   6         =         /    F1         F2   F3   F4   ],
-        [ 0  1  2   3         -         *    F5         F6   F7   F8   ],
-        [ ,  7  8   9         +         +    F9         F10  F11  F12  ],
-        [ t {VUNNUM} {UNNUM}  {HT_1_SP} Tab     Enter  {HT_2_BS}    n    t    t   ],
-    } { /* 4: MISC and Mouse */
-        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n      {MSU}  n      n     n     n   ],
-        [ n      VolDown          Mute         VolUp         n       n    {ML}  {MD}   {MU}  {MR} ],
-        [ n MediaPreviousSong  MediaPlayPause MediaNextSong  n      {MSD}  n      n     n     n   ],
-        [ t      t                {MLC}        {MMC}      {MRC}     {MLC} {MMC}  {MRC}  t     t   ],
+        [ .  4  5  6  =                       /  F1  F2   F3   F4   ],
+        [ 0  1  2  3  -                       *  F5  F6   F7   F8   ],
+        [ ,  7  8  9  +                       +  F9  F10  F11  F12  ],
+        [ Tab {VUNNUM} {UNNUM} {HT_1_SP} t     t t {HT_2_BS} t Enter],
+    } { /* 4: MISC or Mouse */
+        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       n {MWC}   n   n   n  ],
+        [ n      VolDown          Mute         VolUp         n       n {BIW} {MLC} n {MRC}],
+        [ n MediaPreviousSong  MediaPlayPause MediaNextSong  n       n {MWC}   n   n   n  ],
+        [ t      t                 n             n           n       n   n   {MRC} n {MLC}],
     } { /* 5: TMUX */
         [ {T_6}   {T_7} {T_8}   {T_9}   {T_0}      {T_1}   {T_2}  {T_3}   {T_4}   {T_5}   ],
         [ {T_LST}  n     n       n       n          n     {T_PRV} {T_UP}  {T_DWN} {T_NXT} ],
         [  n       n    {T_NEW} {T_CPY} {T_PST}     n       n     {T_RNM} {T_MOV} {T_PST} ],
-        [  t       t     n       n       n         {T_CMD}  n      n       t       t      ],
+        [  n       t     n       n       t          t       t      n       t      {T_CMD} ],
     } { /* 6: Gaming */
-        [ Q  W  E   R         T              {HT_4_Y} U          I  {HT_W_O}     P       ],
-        [ A  S  D   F         G               H       J          K   L         {HT_C_SC} ],
-        [ Z  X  C   V         B               N       M          ,  {HT_A_DOT} {HT_S_SL} ],
-        [ t  t  n  {HT_1_SP}  Tab             Enter   {HT_2_BS}  n   t          t        ],
+        [ Q    W  E   R         T            {HT_4_Y}   U        I  {HT_W_O}     P       ],
+        [ A    S  D   F         G             H         J        K   L         {HT_C_SC} ],
+        [ Z    X  C   V         B             N         M        ,  {HT_A_DOT} {HT_S_SL} ],
+        [ Tab  t  n  {HT_1_SP}  t             n       {HT_2_BS}  n   t          Enter    ],
     } { /* 7: Caps */
 [  Q         {HT_W_W}   F         P         {HT_4_B}    {HT_4_K}   L        U  {HT_W_Y}     ;        ],
 [ {HT_C_A}    R         S        {HT_5_T}    G           M         N        E   I          {HT_C_O}  ],
 [ {HT_S_Z}   {HT_A_X}   C         D         {HT_3_V}    {HT_3_J}   H        ,  {HT_A_DOT}  {HT_S_SL} ],
-[ {VUNCAPS}   t        {UNCAPS}  {HT_1_SP}   '_'         Enter   {HT_2_BS}  n   t           t        ],
+[ '_'         t        {UNCAPS}  {HT_1_SP}  {VUNCAPS}    t         t    {HT_2_BS}   t          Enter ],
     } { /* 8: QWERTY */
 [  Q         {HT_W_W}   E       R         {HT_4_T}       {HT_4_Y}   U         I    {HT_W_O}     P        ],
 [ {HT_C_A}    S         D      {HT_5_F}    G              H         J         K     L          {HT_C_SC} ],
 [ {HT_S_Z}   {HT_A_X}   C       V         {HT_3_B}       {HT_3_N}   M         ,    {HT_A_DOT}  {HT_S_SL} ],
-[  t          t        Escape  {HT_1_SP}   Tab           Enter    {HT_2_BS}  RAlt   t           t        ],
+[  Tab        t        Escape  {HT_1_SP}   t              t         t      {HT_2_BS}   t       Enter     ],
     }
 };

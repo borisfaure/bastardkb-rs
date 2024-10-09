@@ -1,4 +1,5 @@
 use crate::layout::CustomEvent;
+use crate::layout::CustomEvent::*;
 use core::fmt::Debug;
 use keyberon::action::{
     Action,
@@ -25,6 +26,15 @@ const QQ: Action<CustomEvent> = seq(&[Tap(Q), Tap(W), Tap(E)].as_slice());
 /// write `aze`
 const AA: Action<CustomEvent> = seq(&[Tap(A), Tap(Z), Tap(E)].as_slice());
 
+/// Mouse left click
+const MLC: Action<CustomEvent> = Action::Custom(MouseLeftClick);
+/// Mouse right click
+const MRC: Action<CustomEvent> = Action::Custom(MouseRightClick);
+/// Mouse middle click
+const MMC: Action<CustomEvent> = Action::Custom(MouseWheelClick);
+/// Ball is Wheel
+const BIW: Action<CustomEvent> = Action::Custom(BallIsWheel);
+
 #[rustfmt::skip]
 /// Layout
 pub static LAYERS: keyberon::layout::Layers<10, 4, 2, CustomEvent> = keyberon::layout::layout! {
@@ -37,6 +47,6 @@ pub static LAYERS: keyberon::layout::Layers<10, 4, 2, CustomEvent> = keyberon::l
         [  !   #  $    '(' ')'    ^       &       |       *      ~   ],
         [ {AA}  -  '`'  '{' '}'    Left    Down    Up     Right  '\\' ],
         [  @   &  %    '[' ']'    n       n       Home   '\''   '"'  ],
-        [  n   n  n     n  RAlt   Escape  Delete  n       n      n   ],
+        [  n   n  {BIW} n  RAlt   Escape  Delete  {MLC} {MMC} {MRC} ],
     }
 };
