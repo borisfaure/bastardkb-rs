@@ -68,7 +68,6 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
 
         for event in debouncer.events(matrix.scan()).map(transform) {
             defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
-            LAYOUT_CHANNEL.send(event).await;
             if is_host {
                 LAYOUT_CHANNEL.send(event).await;
             } else {
