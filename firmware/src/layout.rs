@@ -1,5 +1,6 @@
 use crate::hid::HID_KB_CHANNEL;
 use crate::mouse::{MouseCommand, MOUSE_CMD_CHANNEL};
+use crate::pmw3360::{SensorCommand, SENSOR_CMD_CHANNEL};
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
@@ -38,6 +39,10 @@ pub enum CustomEvent {
     MouseWheelClick,
     /// Ball is wheel
     BallIsWheel,
+    /// IncreaseAngleTune
+    IncreaseAngleTune,
+    /// DecreaseAngleTune
+    DecreaseAngleTune,
 }
 
 /// Set a report as an error based on keycode `kc`
@@ -99,6 +104,19 @@ async fn process_custom_event(event: KbCustomEvent<CustomEvent>) {
                 .send(MouseCommand::ReleaseBallIsWheel)
                 .await;
         }
+        KbCustomEvent::Press(CustomEvent::IncreaseAngleTune) => {
+            SENSOR_CMD_CHANNEL
+                .send(SensorCommand::IncreaseAngleTune)
+                .await;
+        }
+        KbCustomEvent::Release(CustomEvent::IncreaseAngleTune) => {}
+        KbCustomEvent::Press(CustomEvent::DecreaseAngleTune) => {
+            SENSOR_CMD_CHANNEL
+                .send(SensorCommand::DecreaseAngleTune)
+                .await;
+        }
+        KbCustomEvent::Release(CustomEvent::DecreaseAngleTune) => {}
+
         KbCustomEvent::NoEvent => (),
     }
 }

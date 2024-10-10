@@ -2,17 +2,37 @@
 
 use crate::mouse::{MouseMove, MOUSE_MOVE_CHANNEL};
 use core::fmt::Debug;
+use embassy_futures::select::{select, Either};
 use embassy_rp::gpio::Output;
 use embassy_rp::spi::{Error as SpiError, Instance as SpiInstance, Mode, Spi};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_hal::spi::SpiBus;
 
-const DEFAULT_CPI: u16 = 600;
+/// Maximum number of commands in the channel
+pub const NB_CMD: usize = 64;
+
+/// Channel to send commands to the sensor
+pub static SENSOR_CMD_CHANNEL: Channel<CriticalSectionRawMutex, SensorCommand, NB_CMD> =
+    Channel::new();
+
+const DEFAULT_CPI: u16 = 800;
+
+/// Default angle tune value, the sensor will be turned 32 degrees
+const DEFAULT_ANGLE_TUNE: u8 = 32;
 
 /// Sensor refresh rate, in ms
 const REFRESH_RATE_MS: u64 = 1;
 
 #[derive(Debug)]
+pub enum SensorCommand {
+    IncreaseCpi,
+    DecreaseCpi,
+    IncreaseAngleTune,
+    DecreaseAngleTune,
+}
+
+#[derive(Debug, PartialEq)]
 #[repr(u8)]
 enum Register {
     ProductId = 0x00,
@@ -66,17 +86,27 @@ enum Register {
     LiftCutOffTune2 = 0x65,
 }
 
-#[derive(Default)]
+#[derive(Debug)]
 pub struct BurstData {
     pub motion: bool,
-    pub on_surface: bool,
     pub dx: i16,
     pub dy: i16,
-    pub surface_quality: u8,
-    pub raw_data_sum: u8,
-    pub max_raw_data: u8,
-    pub min_raw_data: u8,
-    pub shutter: u16,
+}
+
+impl BurstData {
+    fn normalize(&self) -> (i8, i8) {
+        if !self.motion {
+            return (0i8, 0i8);
+        }
+        if (self.dx <= i8::MIN as i16 || self.dx >= i8::MAX as i16)
+            || (self.dy <= i8::MIN as i16 || self.dy >= i8::MAX as i16)
+        {
+            defmt::error!("Motion burst error: dx: {}, dy: {}", self.dx, self.dy);
+        }
+        let dx = self.dx.clamp(i8::MIN.into(), i8::MAX.into()) as i8;
+        let dy = self.dy.clamp(i8::MIN.into(), i8::MAX.into()) as i8;
+        (dx, dy)
+    }
 }
 
 #[derive(Debug)]
@@ -95,12 +125,14 @@ pub struct Pmw3360<'a, T: SpiInstance, M: Mode> {
     spi: Spi<'a, T, M>,
     /// The CS pin
     cs: Output<'a>,
-    // rw_flag is set if any writes or reads were performed
-    rw_flag: bool,
+    // in_burst is set if any writes or reads were performed
+    in_burst: bool,
     /// Last Dx value
-    last_dx: i16,
+    last_dx: i8,
     /// Last Dy value
-    last_dy: i16,
+    last_dy: i8,
+    /// Tune angle
+    angle_tune: u8,
 }
 
 impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
@@ -109,18 +141,18 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         Self {
             spi,
             cs,
-            rw_flag: false,
+            in_burst: false,
             last_dx: 0,
             last_dy: 0,
+            angle_tune: 0,
         }
     }
 
     pub async fn burst_get(&mut self) -> Result<BurstData, Pmw3360Error> {
         // Write any value to Motion_burst register
         // if any write occured before
-        if self.rw_flag {
+        if !self.in_burst {
             self.write(Register::MotionBurst, 0x00).await?;
-            self.rw_flag = false;
         }
 
         // Lower NCS
@@ -136,8 +168,8 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         // tSRAD_MOTBR
         // Timer::after_micros(35).await;
 
-        // Read the 12 bytes of burst data
-        let mut buf = [0u8; 12];
+        // Read the 6 bytes of burst data
+        let mut buf = [0u8; 6];
         for b in buf.iter_mut() {
             let t_buf = &mut [0x00];
             match self.spi.transfer_in_place(t_buf) {
@@ -157,15 +189,13 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         //combine the register values
         let data = BurstData {
             motion: (buf[0] & 0x80) != 0,
-            on_surface: (buf[0] & 0x08) == 0,
-            dx: (buf[3] as i16) << 8 | (buf[2] as i16),
-            dy: (buf[5] as i16) << 8 | (buf[4] as i16),
-            surface_quality: buf[6],
-            raw_data_sum: buf[7],
-            max_raw_data: buf[8],
-            min_raw_data: buf[9],
-            shutter: (buf[11] as u16) << 8 | (buf[10] as u16),
+            dy: (buf[3] as i16) << 8 | (buf[2] as i16),
+            dx: (buf[5] as i16) << 8 | (buf[4] as i16),
         };
+        if buf[0] & 0b111 != 0 {
+            defmt::error!("Motion burst error");
+            self.in_burst = false;
+        }
 
         Ok(data)
     }
@@ -192,6 +222,8 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         // tNCS-SCLK
         Timer::after_micros(1).await;
 
+        self.in_burst = register == Register::MotionBurst;
+
         // send adress of the register, with MSBit = 1 to indicate it's a write
         self.spi.transfer_in_place(&mut [register as u8 | 0x80])?;
         // send data
@@ -203,8 +235,6 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
 
         // tSWW/tSWR minus tSCLK-NCS (write)
         Timer::after_micros(145).await;
-
-        self.rw_flag = true;
 
         Ok(())
     }
@@ -233,8 +263,6 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
 
         //  tSRW/tSRR minus tSCLK-NCS
         Timer::after_micros(20).await;
-
-        self.rw_flag = true;
 
         Ok(ret)
     }
@@ -284,6 +312,10 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         // Write 0x00 (rest disable) to Config2 register for wired mouse or 0x20 for
         // wireless mouse design.
         self.write(Register::Config2, 0x00).await?;
+        // Tune the angle
+        self.write(Register::AngleTune, DEFAULT_ANGLE_TUNE).await?;
+        self.angle_tune = 100u8;
+        self.write(Register::LiftConfig, 0x02).await?;
 
         Timer::after_micros(100).await;
 
@@ -302,30 +334,40 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         Timer::after_millis(250).await;
         let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
         loop {
-            ticker.next().await;
-            let burst_res = self.burst_get().await;
-            if let Ok(burst) = burst_res {
-                if self.last_dx != burst.dx || self.last_dy != burst.dy {
-                    let dx: i8 = if burst.dx > 127 {
-                        127
-                    } else if burst.dx < -127 {
-                        -127
-                    } else {
-                        burst.dx as i8
-                    };
-                    let dy: i8 = if burst.dy > 127 {
-                        127
-                    } else if burst.dy < -127 {
-                        -127
-                    } else {
-                        burst.dy as i8
-                    };
-                    MOUSE_MOVE_CHANNEL.send(MouseMove { dx, dy }).await;
-                    self.last_dx = burst.dx;
-                    self.last_dy = burst.dy;
+            match select(ticker.next(), SENSOR_CMD_CHANNEL.receive()).await {
+                Either::First(_) => {
+                    let burst_res = self.burst_get().await;
+                    if let Ok(burst) = burst_res {
+                        let (dx, dy) = burst.normalize();
+                        if self.last_dx != dx || self.last_dy != dy {
+                            MOUSE_MOVE_CHANNEL.send(MouseMove { dx, dy }).await;
+                            self.last_dx = dx;
+                            self.last_dy = dy;
+                        }
+                    } else if let Err(e) = burst_res {
+                        defmt::error!("Error: {:?}", defmt::Debug2Format(&e));
+                    }
                 }
-            } else if let Err(e) = burst_res {
-                defmt::error!("Error: {:?}", defmt::Debug2Format(&e));
+                Either::Second(event) => match event {
+                    SensorCommand::IncreaseCpi => {
+                        let cpi = self.get_cpi().await.unwrap_or(DEFAULT_CPI);
+                        let _ = self.set_cpi(cpi + 100).await;
+                    }
+                    SensorCommand::DecreaseCpi => {
+                        let cpi = self.get_cpi().await.unwrap_or(DEFAULT_CPI);
+                        let _ = self.set_cpi(cpi - 100).await;
+                    }
+                    SensorCommand::IncreaseAngleTune => {
+                        self.angle_tune = self.angle_tune.saturating_add(1);
+                        defmt::info!("Angle tune: {}", self.angle_tune);
+                        let _ = self.write(Register::AngleTune, self.angle_tune).await;
+                    }
+                    SensorCommand::DecreaseAngleTune => {
+                        self.angle_tune = self.angle_tune.saturating_sub(1);
+                        defmt::info!("Angle tune: {}", self.angle_tune);
+                        let _ = self.write(Register::AngleTune, self.angle_tune).await;
+                    }
+                },
             }
         }
     }

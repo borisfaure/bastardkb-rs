@@ -316,6 +316,9 @@ const MWC: Action<CustomEvent> = Action::Custom(MouseWheelClick);
 /// Ball is Wheel
 const BIW: Action<CustomEvent> = Action::Custom(BallIsWheel);
 
+const INC_AT: Action<CustomEvent> = Action::Custom(IncreaseAngleTune);
+const DEC_AT: Action<CustomEvent> = Action::Custom(DecreaseAngleTune);
+
 #[rustfmt::skip]
 /// Layout
 pub static LAYERS: keyberon::layout::Layers<10, 4, 9, CustomEvent> = keyberon::layout::layout! {
@@ -323,7 +326,8 @@ pub static LAYERS: keyberon::layout::Layers<10, 4, 9, CustomEvent> = keyberon::l
 [  Q         {HT_W_W}   F          P         {HT_4_B}    {HT_4_K}   L         U        {HT_W_Y}     ;        ],
 [ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E        {HT_4_I}    {HT_C_O}  ],
 [ {HT_S_Z}   {HT_A_X}   C          D         {HT_3_V}    {HT_3_J}   H         ,        {HT_A_DOT}  {HT_S_SL} ],
-[  Tab       {VNUM}    {HT_3_ESC} {HT_1_SP}  {VCAPS}      n         n        {HT_2_BS}  n           Enter    ],
+[  Tab       {VNUM}    {HT_3_ESC} {HT_1_SP}  {VCAPS}      n         n        {INC_AT}   n           {DEC_AT} ],
+//[  Tab       {VNUM}    {HT_3_ESC} {HT_1_SP}  {VCAPS}      n         n        {HT_2_BS}  n           Enter    ],
     } { /* 1: LOWER */
         [ !  #  $    '(' ')'        ^  &  {S_INS}    *      ~   ],
         [ =  -  '`'  '{' '}'        n  n   PgUp    PgDown  '\\' ],
