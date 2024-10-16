@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use crate::hid::hid_kb_writer_handler;
+use crate::hid::{hid_kb_writer_handler, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR};
 use crate::keys::{matrix_scanner, Matrix};
 use crate::mouse::MouseHandler;
 use crate::pmw3360::Pmw3360;
@@ -15,7 +15,6 @@ use embassy_rp::usb::{Driver, InterruptHandler as USBInterruptHandler};
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, HidWriter, State};
 use embassy_usb::{Builder, Config as USBConfig};
 use futures::future;
-use usbd_hid::descriptor::{KeyboardReport, MouseReport, SerializedDescriptor};
 use {defmt_rtt as _, panic_probe as _};
 
 /// Device
@@ -131,7 +130,7 @@ async fn main(spawner: Spawner) {
 
     // Create classes on the builder.
     let hidkb_config = HidConfig {
-        report_descriptor: KeyboardReport::desc(),
+        report_descriptor: KB_REPORT_DESCRIPTOR,
         request_handler: None,
         poll_ms: 60,
         max_packet_size: 8,
@@ -139,10 +138,10 @@ async fn main(spawner: Spawner) {
     let hidkb = HidReaderWriter::<_, 64, 64>::new(&mut builder, &mut state_kb, hidkb_config);
 
     let hidm_config = HidConfig {
-        report_descriptor: MouseReport::desc(),
+        report_descriptor: MOUSE_REPORT_DESCRIPTOR,
         request_handler: None,
-        poll_ms: 60,
-        max_packet_size: 4,
+        poll_ms: 10,
+        max_packet_size: 7,
     };
     let hid_mouse = HidWriter::<_, 64>::new(&mut builder, &mut state_mouse, hidm_config);
 

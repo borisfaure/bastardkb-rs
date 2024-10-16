@@ -128,9 +128,9 @@ pub struct Pmw3360<'a, T: SpiInstance, M: Mode> {
     // in_burst is set if any writes or reads were performed
     in_burst: bool,
     /// Last Dx value
-    last_dx: i8,
+    last_dx: i16,
     /// Last Dy value
-    last_dy: i8,
+    last_dy: i16,
     /// Tune angle
     angle_tune: u8,
 }
@@ -338,11 +338,15 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
                 Either::First(_) => {
                     let burst_res = self.burst_get().await;
                     if let Ok(burst) = burst_res {
-                        let (dx, dy) = burst.normalize();
-                        if self.last_dx != dx || self.last_dy != dy {
-                            MOUSE_MOVE_CHANNEL.send(MouseMove { dx, dy }).await;
-                            self.last_dx = dx;
-                            self.last_dy = dy;
+                        if self.last_dx != burst.dx || self.last_dy != burst.dy {
+                            MOUSE_MOVE_CHANNEL
+                                .send(MouseMove {
+                                    dx: burst.dx,
+                                    dy: burst.dy,
+                                })
+                                .await;
+                            self.last_dx = burst.dx;
+                            self.last_dy = burst.dy;
                         }
                     } else if let Err(e) = burst_res {
                         defmt::error!("Error: {:?}", defmt::Debug2Format(&e));

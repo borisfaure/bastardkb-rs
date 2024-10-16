@@ -1,4 +1,4 @@
-use crate::hid::HID_KB_CHANNEL;
+use crate::hid::{KeyboardReport, HID_KB_CHANNEL};
 use crate::mouse::{MouseCommand, MOUSE_CMD_CHANNEL};
 use crate::pmw3360::{SensorCommand, SENSOR_CMD_CHANNEL};
 use embassy_futures::select::{select, Either};
@@ -6,7 +6,6 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Ticker};
 use keyberon::key_code::KeyCode;
 use keyberon::layout::{CustomEvent as KbCustomEvent, Event as KBEvent, Layout};
-use usbd_hid::descriptor::KeyboardReport;
 
 /// Basic layout for the keyboard
 #[cfg(feature = "keymap_basic")]

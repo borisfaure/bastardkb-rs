@@ -1,10 +1,10 @@
 use crate::device::is_host;
+use crate::hid::MouseReport;
 use embassy_futures::select::select;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_usb::class::hid::HidWriter;
-use usbd_hid::descriptor::MouseReport;
 
 #[derive(Debug)]
 pub enum MouseCommand {
@@ -29,9 +29,9 @@ pub static MOUSE_CMD_CHANNEL: Channel<CriticalSectionRawMutex, MouseCommand, NB_
 #[derive(Debug)]
 pub struct MouseMove {
     /// Delta X
-    pub dx: i8,
+    pub dx: i16,
     /// Delta Y
-    pub dy: i8,
+    pub dy: i16,
 }
 
 /// Maximum number of movements in the channel
@@ -53,9 +53,9 @@ pub struct MouseHandler<'a> {
     ball_is_wheel: bool,
 
     /// Direction X
-    dx: i8,
+    dx: i16,
     /// Direction Y
-    dy: i8,
+    dy: i16,
 
     /// HID writer
     hid_writer: HidWriter<'a, Driver<'a, USB>, 64>,
@@ -105,7 +105,8 @@ impl<'a> MouseHandler<'a> {
             }
             if is_host() {
                 let hid_report = self.generate_hid_report();
-                match self.hid_writer.write_serialize(&hid_report).await {
+                let raw = hid_report.serialize();
+                match self.hid_writer.write(&raw).await {
                     Ok(()) => {}
                     Err(e) => defmt::warn!("Failed to send report: {:?}", e),
                 }

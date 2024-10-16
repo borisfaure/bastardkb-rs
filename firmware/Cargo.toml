@@ -24,7 +24,6 @@ embassy-usb-logger = { git = "https://github.com/embassy-rs/embassy"}
 pio = "0.2"
 pio-proc = "0.2"
 
-usbd-hid = "0.8"
 fixed = "1.24"
 
 keyberon = { git = "https://github.com/borisfaure/keyberon", branch = "shifted_seq" }
