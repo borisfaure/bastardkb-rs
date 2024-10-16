@@ -93,22 +93,6 @@ pub struct BurstData {
     pub dy: i16,
 }
 
-impl BurstData {
-    fn normalize(&self) -> (i8, i8) {
-        if !self.motion {
-            return (0i8, 0i8);
-        }
-        if (self.dx <= i8::MIN as i16 || self.dx >= i8::MAX as i16)
-            || (self.dy <= i8::MIN as i16 || self.dy >= i8::MAX as i16)
-        {
-            defmt::error!("Motion burst error: dx: {}, dy: {}", self.dx, self.dy);
-        }
-        let dx = self.dx.clamp(i8::MIN.into(), i8::MAX.into()) as i8;
-        let dy = self.dy.clamp(i8::MIN.into(), i8::MAX.into()) as i8;
-        (dx, dy)
-    }
-}
-
 #[derive(Debug)]
 pub enum Pmw3360Error {
     InvalidSignature,
