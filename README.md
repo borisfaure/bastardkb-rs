@@ -39,8 +39,11 @@ The same occurs with NumLock but the event is on Col 1, Row 3.
 
 ## What's missing
 
-- No support for controlling the trackball
+- Support for controlling the trackball when the keyboard is plugged on the
+  left side.
 - RGB underglow leds
+- Mouse acceleration
+- Combos
 - One Shot Actions
 - ...
 
