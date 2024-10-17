@@ -1,6 +1,4 @@
-use crate::layout::CustomEvent::{
-    self, BallIsWheel, MouseLeftClick, MouseRightClick, MouseWheelClick,
-};
+use crate::layout::CustomEvent::{self, *};
 use core::fmt::Debug;
 use keyberon::action::{
     Action,
@@ -35,6 +33,10 @@ const MRC: Action<CustomEvent> = Action::Custom(MouseRightClick);
 const MMC: Action<CustomEvent> = Action::Custom(MouseWheelClick);
 /// Ball is Wheel
 const BIW: Action<CustomEvent> = Action::Custom(BallIsWheel);
+/// Increase sensor CPI
+const INC: Action<CustomEvent> = Action::Custom(IncreaseCpi);
+/// Decrease sensor CPI
+const DEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
 
 #[rustfmt::skip]
 /// Layout
@@ -48,6 +50,6 @@ pub static LAYERS: keyberon::layout::Layers<10, 4, 2, CustomEvent> = keyberon::l
         [  !   #  $    '(' ')'    ^       &       |       *      ~   ],
         [ {AA}  -  '`'  '{' '}'    Left    Down    Up     Right  '\\' ],
         [  @   &  %    '[' ']'    n       n       Home   '\''   '"'  ],
-        [  n   n  {BIW} n  RAlt   Escape  Delete  {MLC} {MMC} {MRC} ],
+        [ {INC} {DEC} {BIW} n  RAlt   Escape  Delete  {MLC} {MMC} {MRC} ],
     }
 };

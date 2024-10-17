@@ -1,6 +1,4 @@
-use crate::layout::CustomEvent::{
-    self, BallIsWheel, MouseLeftClick, MouseRightClick, MouseWheelClick,
-};
+use crate::layout::CustomEvent::{self, *};
 use keyberon::action::Action;
 use keyberon::layout::Layout;
 
@@ -15,6 +13,10 @@ const MRC: Action<CustomEvent> = Action::Custom(MouseRightClick);
 const MMC: Action<CustomEvent> = Action::Custom(MouseWheelClick);
 /// Ball is Wheel
 const BIW: Action<CustomEvent> = Action::Custom(BallIsWheel);
+/// Increase sensor CPI
+const INC: Action<CustomEvent> = Action::Custom(IncreaseCpi);
+/// Decrease sensor CPI
+const DEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
 
 #[rustfmt::skip]
 /// Layout
@@ -28,6 +30,6 @@ pub static LAYERS: keyberon::layout::Layers<10, 4, 2, CustomEvent> = keyberon::l
         [ n  n  n  n  n      n  n  n  n  n ],
         [ n  n  n  n  n      n  n  n  n  n ],
         [ n  n  n  n  n      n  n  n  n  n ],
-        [ n  {BIW}  n  n  {MLC}      {MRC}  {MMC}  n  n  n ],
+        [ n {BIW} {INC} {DEC} {MLC}      {MRC} {MMC}  n  n  n ],
     }
 };
