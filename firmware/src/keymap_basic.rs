@@ -1,5 +1,6 @@
-use crate::layout::CustomEvent;
-use crate::layout::CustomEvent::*;
+use crate::layout::CustomEvent::{
+    self, BallIsWheel, MouseLeftClick, MouseRightClick, MouseWheelClick,
+};
 use keyberon::action::Action;
 use keyberon::layout::Layout;
 

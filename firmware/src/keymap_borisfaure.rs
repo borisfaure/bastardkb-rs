@@ -316,8 +316,10 @@ const MWC: Action<CustomEvent> = Action::Custom(MouseWheelClick);
 /// Ball is Wheel
 const BIW: Action<CustomEvent> = Action::Custom(BallIsWheel);
 
-const INC_AT: Action<CustomEvent> = Action::Custom(IncreaseAngleTune);
-const DEC_AT: Action<CustomEvent> = Action::Custom(DecreaseAngleTune);
+/// Increase CPI
+const MINC: Action<CustomEvent> = Action::Custom(IncreaseCpi);
+/// Decrease CPI
+const MDEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
 
 #[rustfmt::skip]
 /// Layout
@@ -326,8 +328,7 @@ pub static LAYERS: keyberon::layout::Layers<10, 4, 9, CustomEvent> = keyberon::l
 [  Q         {HT_W_W}   F          P         {HT_4_B}    {HT_4_K}   L         U        {HT_W_Y}     ;        ],
 [ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E        {HT_4_I}    {HT_C_O}  ],
 [ {HT_S_Z}   {HT_A_X}   C          D         {HT_3_V}    {HT_3_J}   H         ,        {HT_A_DOT}  {HT_S_SL} ],
-[  Tab       {VNUM}    {HT_3_ESC} {HT_1_SP}  {VCAPS}      n         n        {INC_AT}   n           {DEC_AT} ],
-//[  Tab       {VNUM}    {HT_3_ESC} {HT_1_SP}  {VCAPS}      n         n        {HT_2_BS}  n           Enter    ],
+[  Tab       {VNUM}    {HT_3_ESC} {HT_1_SP}  {VCAPS}      n         n        {HT_2_BS}  n           Enter    ],
     } { /* 1: LOWER */
         [ !  #  $    '(' ')'        ^  &  {S_INS}    *      ~   ],
         [ =  -  '`'  '{' '}'        n  n   PgUp    PgDown  '\\' ],
@@ -344,10 +345,10 @@ pub static LAYERS: keyberon::layout::Layers<10, 4, 9, CustomEvent> = keyberon::l
         [ ,  7  8  9  +                       +  F9  F10  F11  F12  ],
         [ Tab {VUNNUM} {UNNUM} {HT_1_SP} t     t t {HT_2_BS} t Enter],
     } { /* 4: MISC or Mouse */
-        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       n {MWC}   n   n   n  ],
-        [ n      VolDown          Mute         VolUp         n       n {BIW} {MLC} n {MRC}],
-        [ n MediaPreviousSong  MediaPlayPause MediaNextSong  n       n {MWC}   n   n   n  ],
-        [ t      t                 n             n           n       n   n   {MRC} n {MLC}],
+        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       {MINC} {MWC}   n   n   n  ],
+        [ n      VolDown          Mute         VolUp         n        n     {BIW} {MLC} n {MRC}],
+        [ n MediaPreviousSong  MediaPlayPause MediaNextSong  n        n     {MWC}   n   n   n  ],
+        [ t      t                 n             n           n       {MDEC}   n   {MRC} n {MLC}],
     } { /* 5: TMUX */
         [ {T_6}   {T_7} {T_8}   {T_9}   {T_0}      {T_1}   {T_2}  {T_3}   {T_4}   {T_5}   ],
         [ {T_LST}  n     n       n       n          n     {T_PRV} {T_UP}  {T_DWN} {T_NXT} ],

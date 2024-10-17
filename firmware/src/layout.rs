@@ -38,10 +38,10 @@ pub enum CustomEvent {
     MouseWheelClick,
     /// Ball is wheel
     BallIsWheel,
-    /// IncreaseAngleTune
-    IncreaseAngleTune,
-    /// DecreaseAngleTune
-    DecreaseAngleTune,
+    /// Increase sensor CPI
+    IncreaseCpi,
+    /// Decrease sensor CPI
+    DecreaseCpi,
 }
 
 /// Set a report as an error based on keycode `kc`
@@ -103,18 +103,14 @@ async fn process_custom_event(event: KbCustomEvent<CustomEvent>) {
                 .send(MouseCommand::ReleaseBallIsWheel)
                 .await;
         }
-        KbCustomEvent::Press(CustomEvent::IncreaseAngleTune) => {
-            SENSOR_CMD_CHANNEL
-                .send(SensorCommand::IncreaseAngleTune)
-                .await;
+        KbCustomEvent::Press(CustomEvent::IncreaseCpi) => {
+            SENSOR_CMD_CHANNEL.send(SensorCommand::IncreaseCpi).await;
         }
-        KbCustomEvent::Release(CustomEvent::IncreaseAngleTune) => {}
-        KbCustomEvent::Press(CustomEvent::DecreaseAngleTune) => {
-            SENSOR_CMD_CHANNEL
-                .send(SensorCommand::DecreaseAngleTune)
-                .await;
+        KbCustomEvent::Release(CustomEvent::IncreaseCpi) => {}
+        KbCustomEvent::Press(CustomEvent::DecreaseCpi) => {
+            SENSOR_CMD_CHANNEL.send(SensorCommand::DecreaseCpi).await;
         }
-        KbCustomEvent::Release(CustomEvent::DecreaseAngleTune) => {}
+        KbCustomEvent::Release(CustomEvent::DecreaseCpi) => {}
 
         KbCustomEvent::NoEvent => (),
     }

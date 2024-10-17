@@ -28,8 +28,6 @@ const REFRESH_RATE_MS: u64 = 1;
 pub enum SensorCommand {
     IncreaseCpi,
     DecreaseCpi,
-    IncreaseAngleTune,
-    DecreaseAngleTune,
 }
 
 #[derive(Debug, PartialEq)]
@@ -115,8 +113,6 @@ pub struct Pmw3360<'a, T: SpiInstance, M: Mode> {
     last_dx: i16,
     /// Last Dy value
     last_dy: i16,
-    /// Tune angle
-    angle_tune: u8,
 }
 
 impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
@@ -128,7 +124,6 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
             in_burst: false,
             last_dx: 0,
             last_dy: 0,
-            angle_tune: 0,
         }
     }
 
@@ -185,6 +180,7 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
     }
 
     pub async fn set_cpi(&mut self, cpi: u16) -> Result<(), Pmw3360Error> {
+        defmt::info!("Setting CPI to {}", cpi);
         let val: u8 = if cpi < 100 {
             0
         } else if cpi > 12000 {
@@ -298,7 +294,6 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         self.write(Register::Config2, 0x00).await?;
         // Tune the angle
         self.write(Register::AngleTune, DEFAULT_ANGLE_TUNE).await?;
-        self.angle_tune = 100u8;
         self.write(Register::LiftConfig, 0x02).await?;
 
         Timer::after_micros(100).await;
@@ -344,16 +339,6 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
                     SensorCommand::DecreaseCpi => {
                         let cpi = self.get_cpi().await.unwrap_or(DEFAULT_CPI);
                         let _ = self.set_cpi(cpi - 100).await;
-                    }
-                    SensorCommand::IncreaseAngleTune => {
-                        self.angle_tune = self.angle_tune.saturating_add(1);
-                        defmt::info!("Angle tune: {}", self.angle_tune);
-                        let _ = self.write(Register::AngleTune, self.angle_tune).await;
-                    }
-                    SensorCommand::DecreaseAngleTune => {
-                        self.angle_tune = self.angle_tune.saturating_sub(1);
-                        defmt::info!("Angle tune: {}", self.angle_tune);
-                        let _ = self.write(Register::AngleTune, self.angle_tune).await;
                     }
                 },
             }

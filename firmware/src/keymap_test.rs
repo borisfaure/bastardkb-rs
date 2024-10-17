@@ -1,5 +1,6 @@
-use crate::layout::CustomEvent;
-use crate::layout::CustomEvent::*;
+use crate::layout::CustomEvent::{
+    self, BallIsWheel, MouseLeftClick, MouseRightClick, MouseWheelClick,
+};
 use core::fmt::Debug;
 use keyberon::action::{
     Action,
