@@ -58,16 +58,18 @@ pub async fn full_duplex_comm<'a>(
             }
             Either::Second(x) => {
                 status_led.set_low();
-                defmt::info!("got byte: {:x}", x);
                 match deserialize(x) {
-                    Ok(event) => match event {
-                        Event::Press(i, j) => {
-                            LAYOUT_CHANNEL.send(KBEvent::Press(i, j)).await;
+                    Ok(event) => {
+                        defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
+                        match event {
+                            Event::Press(i, j) => {
+                                LAYOUT_CHANNEL.send(KBEvent::Press(i, j)).await;
+                            }
+                            Event::Release(i, j) => {
+                                LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
+                            }
                         }
-                        Event::Release(i, j) => {
-                            LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
-                        }
-                    },
+                    }
                     Err(_) => {
                         defmt::warn!("Invalid event received: {:?}", x);
                     }

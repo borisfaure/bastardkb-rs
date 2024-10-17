@@ -28,7 +28,7 @@ pub static LAYOUT_CHANNEL: Channel<CriticalSectionRawMutex, KBEvent, NB_EVENTS> 
 
 /// Custom events for the layout, mostly mouse events
 //#[allow(clippy::enum_variant_names)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum CustomEvent {
     /// Mouse left click
     MouseLeftClick,

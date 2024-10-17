@@ -1,6 +1,6 @@
 use crate::device::is_host;
 use crate::hid::MouseReport;
-use embassy_futures::select::select;
+use embassy_futures::select::{select, Either};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
@@ -83,25 +83,38 @@ impl<'a> MouseHandler<'a> {
         }
     }
 
+    /// Handle a mouse command event
+    fn handle_command_event(&mut self, event: MouseCommand) {
+        match event {
+            MouseCommand::PressRightClick => self.right_click = true,
+            MouseCommand::ReleaseRightClick => self.right_click = false,
+            MouseCommand::PressLeftClick => self.left_click = true,
+            MouseCommand::ReleaseLeftClick => self.left_click = false,
+            MouseCommand::PressWheelClick => self.wheel_click = true,
+            MouseCommand::ReleaseWheelClick => self.wheel_click = false,
+            MouseCommand::PressBallIsWheel => self.ball_is_wheel = true,
+            MouseCommand::ReleaseBallIsWheel => self.ball_is_wheel = false,
+        }
+    }
+
+    /// Handle a mouse movement event
+    fn handle_move_event(&mut self, MouseMove { dx, dy }: MouseMove) {
+        self.dx = dx;
+        self.dy = dy;
+    }
+
     /// Compute the state of the mouse. Called every 1ms
     pub async fn run(&mut self) {
         loop {
-            select(MOUSE_CMD_CHANNEL.receive(), MOUSE_MOVE_CHANNEL.receive()).await;
+            match select(MOUSE_CMD_CHANNEL.receive(), MOUSE_MOVE_CHANNEL.receive()).await {
+                Either::First(event) => self.handle_command_event(event),
+                Either::Second(event) => self.handle_move_event(event),
+            }
             if let Ok(event) = MOUSE_CMD_CHANNEL.try_receive() {
-                match event {
-                    MouseCommand::PressRightClick => self.right_click = true,
-                    MouseCommand::ReleaseRightClick => self.right_click = false,
-                    MouseCommand::PressLeftClick => self.left_click = true,
-                    MouseCommand::ReleaseLeftClick => self.left_click = false,
-                    MouseCommand::PressWheelClick => self.wheel_click = true,
-                    MouseCommand::ReleaseWheelClick => self.wheel_click = false,
-                    MouseCommand::PressBallIsWheel => self.ball_is_wheel = true,
-                    MouseCommand::ReleaseBallIsWheel => self.ball_is_wheel = false,
-                }
+                self.handle_command_event(event);
             }
             if let Ok(event) = MOUSE_MOVE_CHANNEL.try_receive() {
-                self.dx = event.dx;
-                self.dy = event.dy;
+                self.handle_move_event(event);
             }
             if is_host() {
                 let hid_report = self.generate_hid_report();
