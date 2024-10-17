@@ -175,6 +175,8 @@ async fn main(spawner: Spawner) {
     let pio1 = Pio::new(p.PIO1, PioIrq1);
     let matrix = Matrix::new(rows, cols);
     let mut status_led = Output::new(p.PIN_24, Level::Low);
+    // Disable the status LED on startup
+    status_led.set_high();
 
     let full_duplex_fut = side::full_duplex_comm(
         pio1.common,
