@@ -61,6 +61,10 @@ pub struct MouseHandler<'a> {
     hid_writer: HidWriter<'a, Driver<'a, USB>, 64>,
 }
 
+/// Threshold to consider the movement as a wheel movement
+const WHEEL_THRESHOLD: i16 = 32;
+
+/// Empty mouse report
 const MOUSE_REPORT_EMPTY: MouseReport = MouseReport {
     x: 0,
     y: 0,
@@ -132,8 +136,8 @@ impl<'a> MouseHandler<'a> {
         let mut report = MOUSE_REPORT_EMPTY;
         if self.ball_is_wheel {
             match self.dy {
-                y if y > 0 => report.pan = 1,
-                y if y < 0 => report.pan = -1,
+                y if y > WHEEL_THRESHOLD => report.wheel = 1,
+                y if y < -WHEEL_THRESHOLD => report.wheel = -1,
                 _ => {}
             }
         } else {
