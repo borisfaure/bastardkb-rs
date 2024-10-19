@@ -1,16 +1,20 @@
 .program rgb_led
 
+.define public T1 1
+.define public T2 4
+.define public T3 2
+
 .side_set 1 ; One side-set bit for pin control
 
 wrap_target:
 
     set pindirs, 1 side 0     ; Set pin direction output, with side-set = 0
 
-    out x, 1 [2] side 0    ; Output 1 bit (stop bit), delay for stop bit duration
+    out x, 1 [T3] side 0    ; Output 1 bit (stop bit), delay for stop bit duration
 
-    jmp x--, do_zero [1] side 1 ; Start bit (side-set = 1), delay for start bit duration, branch if X is zero
+    jmp x--, do_zero [T1] side 1 ; Start bit (side-set = 1), delay for start bit duration, branch if X is zero
 
-    jmp wrap_target [4] side 1  ; Data bit = 1 (side-set = 1), delay for data bit duration, loop back
+    jmp wrap_target [T2] side 1  ; Data bit = 1 (side-set = 1), delay for data bit duration, loop back
 
 do_zero:
     nop [4] side 0         ; Data bit = 0 (side-set = 0), delay for data bit duration
