@@ -42,6 +42,8 @@ pub enum CustomEvent {
     IncreaseCpi,
     /// Decrease sensor CPI
     DecreaseCpi,
+    /// Next Animation of the RGB LEDs
+    NextLedAnimation,
 }
 
 /// Set a report as an error based on keycode `kc`
@@ -111,6 +113,9 @@ async fn process_custom_event(event: KbCustomEvent<CustomEvent>) {
             SENSOR_CMD_CHANNEL.send(SensorCommand::DecreaseCpi).await;
         }
         KbCustomEvent::Release(CustomEvent::DecreaseCpi) => {}
+
+        KbCustomEvent::Press(CustomEvent::NextLedAnimation) => {}
+        KbCustomEvent::Release(CustomEvent::NextLedAnimation) => {}
 
         KbCustomEvent::NoEvent => (),
     }
