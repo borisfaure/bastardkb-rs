@@ -1,13 +1,10 @@
-use defmt::*;
-use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
 use embassy_rp::dma::{AnyChannel, Channel};
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{
-    Common, Config as PioConfig, FifoJoin, Instance, InterruptHandler, Pio, PioPin, ShiftConfig,
-    ShiftDirection, StateMachine,
+    Common, Config as PioConfig, FifoJoin, Instance, PioPin, ShiftConfig, ShiftDirection,
+    StateMachine,
 };
-use embassy_rp::{bind_interrupts, clocks, into_ref, Peripheral, PeripheralRef};
+use embassy_rp::{clocks, into_ref, Peripheral, PeripheralRef};
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
@@ -17,8 +14,11 @@ use {defmt_rtt as _, panic_probe as _};
 /// Number of LEDs in the strip, on one side of the keyboard
 const NUM_LEDS: usize = 18;
 
+/// WS2812 driver
 pub struct Ws2812<'d, P: Instance, const S: usize, const N: usize> {
+    /// DMA channel to push RGB data to the PIO state machine
     dma: PeripheralRef<'d, AnyChannel>,
+    /// PIO state machine to control the WS2812 chain
     sm: StateMachine<'d, P, S>,
 }
 
@@ -115,10 +115,10 @@ pub async fn run(
     let mut ticker = Ticker::every(Duration::from_millis(10));
     loop {
         for j in 0..(256 * 5) {
-            debug!("New Colors:");
-            for i in 0..NUM_LEDS {
-                data[i] = wheel((((i * 256) as u16 / NUM_LEDS as u16 + j as u16) & 255) as u8);
-                debug!("R: {} G: {} B: {}", data[i].r, data[i].g, data[i].b);
+            defmt::debug!("New Colors:");
+            for (i, led) in data.iter_mut().enumerate().take(NUM_LEDS) {
+                *led = wheel((((i * 256) as u16 / NUM_LEDS as u16 + j as u16) & 255) as u8);
+                defmt::debug!("R: {} G: {} B: {}", led.r, led.g, led.b);
             }
             ws2812.write(&data).await;
 
