@@ -8,7 +8,7 @@ use crate::pmw3360::Pmw3360;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
-use embassy_rp::peripherals::{PIO1, USB};
+use embassy_rp::peripherals::{PIO0, PIO1, USB};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
 use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_rp::usb::{Driver, InterruptHandler as USBInterruptHandler};
@@ -29,6 +29,8 @@ mod layout;
 mod mouse;
 /// PMW3360 sensor
 mod pmw3360;
+/// RGB LEDs
+mod rgb_leds;
 /// Handling the other half of the keyboard
 mod side;
 
@@ -55,6 +57,9 @@ compile_error!(
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => USBInterruptHandler<USB>;
+});
+bind_interrupts!(struct PioIrq0 {
+    PIO0_IRQ_0 => PioInterruptHandler<PIO0>;
 });
 bind_interrupts!(struct PioIrq1 {
     PIO1_IRQ_0 => PioInterruptHandler<PIO1>;
@@ -187,6 +192,8 @@ async fn main(spawner: Spawner) {
         &mut status_led,
         is_right,
     );
+    let pio0 = Pio::new(p.PIO0, PioIrq0);
+    let rgb_leds_fut = rgb_leds::run(pio0.common, pio0.sm0, p.DMA_CH0, p.PIN_0);
     let layout_fut = layout::layout_handler();
     let matrix_fut = matrix_scanner(matrix, is_right);
     let mut mouse_handler = MouseHandler::new(hid_mouse);
@@ -200,8 +207,8 @@ async fn main(spawner: Spawner) {
             let mosi = p.PIN_23; // B2
             let miso = p.PIN_20; // B3
             let cs = Output::new(p.PIN_16, Level::High); // F0
-            let tx_dma = p.DMA_CH0;
-            let rx_dma = p.DMA_CH1;
+            let tx_dma = p.DMA_CH1;
+            let rx_dma = p.DMA_CH2;
             let mut spi_config = SpiConfig::default();
             spi_config.frequency = 7_000_000;
             spi_config.polarity = Polarity::IdleHigh;
@@ -217,7 +224,7 @@ async fn main(spawner: Spawner) {
         };
         let ball_sensor_fut = ball.run();
         future::join4(
-            future::join(usb_fut, full_duplex_fut),
+            future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
             future::join(matrix_fut, layout_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut),
             future::join(ball_sensor_fut, mouse_fut),
@@ -225,7 +232,7 @@ async fn main(spawner: Spawner) {
         .await;
     } else {
         future::join3(
-            future::join(usb_fut, full_duplex_fut),
+            future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
             future::join(matrix_fut, layout_fut),
             future::join3(hid_kb_reader_fut, hid_kb_writer_fut, mouse_fut),
         )
