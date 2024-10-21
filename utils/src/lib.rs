@@ -2,3 +2,6 @@
 
 /// Serialization and deserialization of key events
 pub mod serde;
+
+/// Compule LED Data to render RGB Animations
+pub mod rgb_anims;
