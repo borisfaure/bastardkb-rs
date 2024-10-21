@@ -199,8 +199,6 @@ async fn main(spawner: Spawner) {
     let mut mouse_handler = MouseHandler::new(hid_mouse);
     let mouse_fut = mouse_handler.run();
 
-    defmt::info!("let's go!");
-
     if is_right {
         let mut ball = {
             let sclk = p.PIN_22; // B1
@@ -223,6 +221,7 @@ async fn main(spawner: Spawner) {
             ball
         };
         let ball_sensor_fut = ball.run();
+        defmt::info!("let's go!");
         future::join4(
             future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
             future::join(matrix_fut, layout_fut),
@@ -231,6 +230,7 @@ async fn main(spawner: Spawner) {
         )
         .await;
     } else {
+        defmt::info!("let's go!");
         future::join3(
             future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
             future::join(matrix_fut, layout_fut),
