@@ -68,6 +68,7 @@ pub async fn full_duplex_comm<'a>(
                             Event::Release(i, j) => {
                                 LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
                             }
+                            _ => todo!(),
                         }
                     }
                     Err(_) => {
