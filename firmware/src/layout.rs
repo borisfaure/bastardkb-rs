@@ -1,6 +1,7 @@
 use crate::hid::{KeyboardReport, HID_KB_CHANNEL};
 use crate::mouse::{MouseCommand, MOUSE_CMD_CHANNEL};
 use crate::pmw3360::{SensorCommand, SENSOR_CMD_CHANNEL};
+use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
@@ -114,7 +115,9 @@ async fn process_custom_event(event: KbCustomEvent<CustomEvent>) {
         }
         KbCustomEvent::Release(CustomEvent::DecreaseCpi) => {}
 
-        KbCustomEvent::Press(CustomEvent::NextLedAnimation) => {}
+        KbCustomEvent::Press(CustomEvent::NextLedAnimation) => {
+            ANIM_CHANNEL.send(AnimCommand::Next).await;
+        }
         KbCustomEvent::Release(CustomEvent::NextLedAnimation) => {}
 
         KbCustomEvent::NoEvent => (),

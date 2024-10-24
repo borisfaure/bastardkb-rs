@@ -1,18 +1,32 @@
-use embassy_rp::dma::{AnyChannel, Channel};
+use embassy_futures::select::{select3, Either3};
+use embassy_rp::dma::{AnyChannel, Channel as DmaChannel};
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{
     Common, Config as PioConfig, FifoJoin, Instance, PioPin, ShiftConfig, ShiftDirection,
     StateMachine,
 };
 use embassy_rp::{clocks, into_ref, Peripheral, PeripheralRef};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
-use smart_leds::RGB8;
+use keyberon::layout::Event as KbEvent;
+use utils::rgb_anims::{RgbAnim, RGB8};
 use {defmt_rtt as _, panic_probe as _};
 
-/// Number of LEDs in the strip, on one side of the keyboard
-const NUM_LEDS: usize = 18;
+/// Number of events in the channel from keys
+const NB_EVENTS: usize = 64;
+/// Channel to send `keyberon::layout::event` events to the layout handler
+pub static RGB_CHANNEL: Channel<CriticalSectionRawMutex, KbEvent, NB_EVENTS> = Channel::new();
+
+/// Animation commands
+pub enum AnimCommand {
+    /// Set the next animation
+    Next,
+}
+
+/// Channel to change the animation of the RGB LEDs
+pub static ANIM_CHANNEL: Channel<CriticalSectionRawMutex, AnimCommand, NB_EVENTS> = Channel::new();
 
 /// WS2812 driver
 pub struct Ws2812<'d, P: Instance, const S: usize, const N: usize> {
@@ -26,7 +40,7 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
     pub fn new(
         pio: &mut Common<'d, P>,
         mut sm: StateMachine<'d, P, S>,
-        dma: impl Peripheral<P = impl Channel> + 'd,
+        dma: impl Peripheral<P = impl DmaChannel> + 'd,
         pin: impl PioPin,
     ) -> Self {
         into_ref!(dma);
@@ -86,43 +100,37 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
     }
 }
 
-/// Input a value 0 to 255 to get a color value
-/// The colours are a transition r - g - b - back to r.
-fn wheel(mut wheel_pos: u8) -> RGB8 {
-    wheel_pos = 255 - wheel_pos;
-    if wheel_pos < 85 {
-        return (255 - wheel_pos * 3, 0, wheel_pos * 3).into();
-    }
-    if wheel_pos < 170 {
-        wheel_pos -= 85;
-        return (0, wheel_pos * 3, 255 - wheel_pos * 3).into();
-    }
-    wheel_pos -= 170;
-    (wheel_pos * 3, 255 - wheel_pos * 3, 0).into()
-}
-
 /// Run the LED animation control
 pub async fn run(
     mut common: Common<'_, PIO0>,
     sm0: StateMachine<'_, PIO0, 0>,
-    dma: impl Channel,
+    dma: impl DmaChannel,
     pin: impl PioPin,
+    is_right: bool,
 ) {
     let mut ws2812 = Ws2812::new(&mut common, sm0, dma, pin);
-    let mut data = [RGB8::default(); NUM_LEDS];
 
     // Loop forever making RGB values and pushing them out to the WS2812.
-    let mut ticker = Ticker::every(Duration::from_millis(10));
-    loop {
-        for j in 0..(256 * 5) {
-            defmt::debug!("New Colors:");
-            for (i, led) in data.iter_mut().enumerate().take(NUM_LEDS) {
-                *led = wheel((((i * 256) as u16 / NUM_LEDS as u16 + j as u16) & 255) as u8);
-                defmt::debug!("R: {} G: {} B: {}", led.r, led.g, led.b);
-            }
-            ws2812.write(&data).await;
+    let mut ticker = Ticker::every(Duration::from_hz(30));
 
-            ticker.next().await;
+    let mut anim = RgbAnim::new(is_right);
+    loop {
+        match select3(RGB_CHANNEL.receive(), ANIM_CHANNEL.receive(), ticker.next()).await {
+            Either3::First(event) => match event {
+                KbEvent::Press(i, j) => {
+                    anim.on_key_event(i, j, true);
+                }
+                KbEvent::Release(i, j) => {
+                    anim.on_key_event(i, j, false);
+                }
+            },
+            Either3::Second(cmd) => match cmd {
+                AnimCommand::Next => anim.next_animation(),
+            },
+            Either3::Third(_) => {
+                let data = anim.tick();
+                ws2812.write(data).await;
+            }
         }
     }
 }

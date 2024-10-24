@@ -193,7 +193,7 @@ async fn main(spawner: Spawner) {
         is_right,
     );
     let pio0 = Pio::new(p.PIO0, PioIrq0);
-    let rgb_leds_fut = rgb_leds::run(pio0.common, pio0.sm0, p.DMA_CH0, p.PIN_0);
+    let rgb_leds_fut = rgb_leds::run(pio0.common, pio0.sm0, p.DMA_CH0, p.PIN_0, is_right);
     let layout_fut = layout::layout_handler();
     let matrix_fut = matrix_scanner(matrix, is_right);
     let mut mouse_handler = MouseHandler::new(hid_mouse);

@@ -1,5 +1,6 @@
 use crate::device::is_host;
 use crate::layout::LAYOUT_CHANNEL;
+use crate::rgb_leds::RGB_CHANNEL;
 use crate::side::SIDE_CHANNEL;
 use embassy_rp::gpio::{Input, Output};
 use embassy_time::{Duration, Ticker};
@@ -8,9 +9,9 @@ use keyberon::layout::Event as KBEvent;
 use utils::serde::Event;
 
 /// Keyboard matrix rows
-const ROWS: usize = 4;
+pub const ROWS: usize = 4;
 /// Keyboard matrix columns
-const COLS: usize = 5;
+pub const COLS: usize = 5;
 /// Keyboard matrix refresh rate, in Hz
 const REFRESH_RATE: u16 = 1000;
 /// Keyboard matrix debouncing time, in ms
@@ -70,16 +71,19 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
             defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
             if is_host {
                 LAYOUT_CHANNEL.send(event).await;
+                RGB_CHANNEL.send(event).await;
             } else {
                 match event {
                     KBEvent::Press(i, j) => {
                         SIDE_CHANNEL.send(Event::Press(i, j)).await;
+                        RGB_CHANNEL.send(event).await;
                     }
                     KBEvent::Release(i, j) => {
                         SIDE_CHANNEL.send(Event::Release(i, j)).await;
+                        RGB_CHANNEL.send(event).await;
                     }
                 }
-            };
+            }
         }
 
         ticker.next().await;

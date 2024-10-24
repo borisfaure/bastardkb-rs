@@ -26,7 +26,6 @@ pio-proc = "0.2"
 
 fixed = "1.24"
 fixed-macro = "1.2"
-smart-leds = "0.4"
 
 keyberon = { git = "https://github.com/borisfaure/keyberon", branch = "shifted_seq" }
 
