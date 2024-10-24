@@ -12,11 +12,13 @@ wrap_target:
 
     out x, 1 [T3] side 0    ; Output 1 bit (stop bit), delay for stop bit duration
 
-    jmp x--, do_zero [T1] side 1 ; Start bit (side-set = 1), delay for start bit duration, branch if X is zero
+    jmp x--, do_one [T1] side 1 ; Start bit (side-set = 1), delay for start bit duration, branch if X is zero
 
-    jmp wrap_target [T2] side 1  ; Data bit = 1 (side-set = 1), delay for data bit duration, loop back
+    nop [T2] side 0         ; Data bit = 1 (side-set = 0), delay for data bit duration
 
-do_zero:
-    nop [4] side 0         ; Data bit = 0 (side-set = 0), delay for data bit duration
+    jmp wrap_target side 0     ; Jump back to start
+
+do_one:
+    jmp wrap_target [T2] side 1  ; Data bit = 0 (side-set = 1), delay for data bit duration
 
 wrap:
