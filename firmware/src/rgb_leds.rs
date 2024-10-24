@@ -113,7 +113,7 @@ pub async fn run(
     // Loop forever making RGB values and pushing them out to the WS2812.
     let mut ticker = Ticker::every(Duration::from_hz(30));
 
-    let mut anim = RgbAnim::new(is_right);
+    let mut anim = RgbAnim::new(is_right, clocks::rosc_freq());
     loop {
         match select3(RGB_CHANNEL.receive(), ANIM_CHANNEL.receive(), ticker.next()).await {
             Either3::First(event) => match event {
@@ -125,7 +125,10 @@ pub async fn run(
                 }
             },
             Either3::Second(cmd) => match cmd {
-                AnimCommand::Next => anim.next_animation(),
+                AnimCommand::Next => {
+                    let new_anim = anim.next_animation();
+                    defmt::info!("New animation: {:?}", defmt::Debug2Format(&new_anim));
+                }
             },
             Either3::Third(_) => {
                 let data = anim.tick();
