@@ -9,16 +9,12 @@ pub const ROWS: usize = 4;
 /// Keyboard matrix columns
 pub const COLS: usize = 5;
 
-/// Default color: red
-pub const DEFAULT_COLOR_U8: u8 = 0b1110_0000;
-
 /// RGB Animation Type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RgbAnimType {
     /// No animation, leds are off
     Off,
-    SolidColor(u8), // u8 is the color in the form 3-bit red, 3-bit green,
-    // 2-bit blue
+    SolidColor(u8), // Color index
     /// Wheel
     Wheel,
     /// Pulse animation with random colors on each pulse
@@ -32,7 +28,7 @@ pub enum RgbAnimType {
 }
 
 /// RGB Color
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RGB8 {
     /// Red
     pub r: u8,
@@ -47,20 +43,44 @@ impl RGB8 {
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         RGB8 { r, g, b }
     }
-}
 
-impl From<u8> for RGB8 {
-    fn from(i: u8) -> Self {
-        let r = (i >> 5) & 0b111;
-        let g = (i >> 2) & 0b111;
-        let b = i & 0b11;
-        RGB8 {
-            r: r << 5 | r << 2 | (r >> 1),
-            g: g << 5 | g << 2 | (g >> 1),
-            b: b << 6 | b << 4 | b << 2 | b,
-        }
+    /// Default color: black
+    pub const fn default() -> Self {
+        RGB8::new(0, 0, 0)
+    }
+
+    /// Create a new RGB8 color from an indexed color
+    pub fn indexed(i: u8) -> Self {
+        INDEXED_COLORS[i as usize]
     }
 }
+
+/// Indexed colors
+const INDEXED_COLORS: [RGB8; 10] = [
+    // No color
+    RGB8::default(),
+    // orange #fa6800, RAISE
+    RGB8::new(250, 104, 0),
+    // green #a4c400, LOWER
+    RGB8::new(109, 135, 100),
+    // purple #99006e, MISC
+    RGB8::new(153, 0, 110),
+    // blue #7ea6e0, NUMBERS
+    RGB8::new(126, 166, 224),
+    // red #b85450, TMUX
+    RGB8::new(184, 84, 80),
+    // gray #666666, GAMING
+    RGB8::new(102, 102, 102),
+    // beige #e7e7e7, CAPS
+    RGB8::new(231, 231, 231),
+    // yellow #f3e5ab, QWERTY
+    RGB8::new(243, 229, 171),
+    // red #ff0000
+    RGB8::new(255, 0, 0),
+];
+/// Default color: red
+const DEFAULT_COLOR_INDEX: u8 = 9;
+
 impl From<u32> for RGB8 {
     fn from(i: u32) -> Self {
         let r = ((i >> 24) & 0xff) as u8;
@@ -137,7 +157,7 @@ impl RgbAnim {
             animation: RgbAnimType::Pulse,
             led_data: [RGB8::default(); NUM_LEDS],
             is_right,
-            color: RGB8::from(DEFAULT_COLOR_U8),
+            color: RGB8::indexed(DEFAULT_COLOR_INDEX),
             prng: XorShift32::new(seed),
         }
     }
@@ -179,7 +199,7 @@ impl RgbAnim {
 
     /// Set a random color as main color
     fn new_random_color(&mut self) -> RGB8 {
-        RGB8::from(self.prng.random() as u8)
+        RGB8::from(self.prng.random())
     }
 
     /// Tick the animation
@@ -213,7 +233,7 @@ impl RgbAnim {
             }
             RgbAnimType::InputSolid(color) => {
                 self.led_data[self.get_led_index(i, j)] = if is_press {
-                    RGB8::from(color)
+                    RGB8::indexed(color)
                 } else {
                     RGB8::default()
                 };
@@ -230,8 +250,8 @@ impl RgbAnim {
 
         match self.animation {
             RgbAnimType::Off => {
-                self.animation = RgbAnimType::SolidColor(DEFAULT_COLOR_U8);
-                self.fill_color(RGB8::from(DEFAULT_COLOR_U8));
+                self.animation = RgbAnimType::SolidColor(DEFAULT_COLOR_INDEX);
+                self.fill_color(RGB8::indexed(DEFAULT_COLOR_INDEX));
             }
             RgbAnimType::SolidColor(_) => {
                 self.animation = RgbAnimType::Wheel;
@@ -240,20 +260,20 @@ impl RgbAnim {
                 self.animation = RgbAnimType::Pulse;
             }
             RgbAnimType::Pulse => {
-                self.animation = RgbAnimType::PulseSolid(DEFAULT_COLOR_U8);
-                self.color = RGB8::from(DEFAULT_COLOR_U8);
+                self.animation = RgbAnimType::PulseSolid(DEFAULT_COLOR_INDEX);
+                self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
             }
             RgbAnimType::PulseSolid(_) => {
                 self.animation = RgbAnimType::Input;
                 self.color = self.new_random_color();
             }
             RgbAnimType::Input => {
-                self.animation = RgbAnimType::InputSolid(DEFAULT_COLOR_U8);
-                self.color = RGB8::from(DEFAULT_COLOR_U8);
+                self.animation = RgbAnimType::InputSolid(DEFAULT_COLOR_INDEX);
+                self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
             }
             RgbAnimType::InputSolid(_) => {
                 self.animation = RgbAnimType::Off;
-                self.color = RGB8::from(DEFAULT_COLOR_U8);
+                self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
             }
         }
         self.animation
