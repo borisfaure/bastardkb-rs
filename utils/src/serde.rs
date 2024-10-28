@@ -7,6 +7,7 @@ pub enum Event {
     Press(u8, u8),
     Release(u8, u8),
     RgbAnim(RgbAnimType),
+    RgbAnimChangeLayer(u8),
 }
 
 #[derive(Debug)]
@@ -26,6 +27,7 @@ pub fn deserialize(bytes: u32) -> Result<Event, Error> {
         [b'L', b'p', i, b'\n'] => Ok(Event::RgbAnim(RgbAnimType::PulseSolid(i))),
         [b'L', b'I', b'n', b'\n'] => Ok(Event::RgbAnim(RgbAnimType::Input)),
         [b'L', b'i', i, b'\n'] => Ok(Event::RgbAnim(RgbAnimType::InputSolid(i))),
+        [b'L', b'C', i, b'\n'] => Ok(Event::RgbAnimChangeLayer(i)),
         _ => Err(Error::Deserialization),
     }
 }
@@ -42,6 +44,7 @@ pub fn serialize(e: Event) -> u32 {
         Event::RgbAnim(RgbAnimType::PulseSolid(i)) => u32::from_le_bytes([b'L', b'p', i, b'\n']),
         Event::RgbAnim(RgbAnimType::Input) => u32::from_le_bytes([b'L', b'I', b'n', b'\n']),
         Event::RgbAnim(RgbAnimType::InputSolid(i)) => u32::from_le_bytes([b'L', b'i', i, b'\n']),
+        Event::RgbAnimChangeLayer(i) => u32::from_le_bytes([b'L', b'C', i, b'\n']),
     }
 }
 
@@ -71,6 +74,8 @@ mod tests {
             (Event::RgbAnim(RgbAnimType::InputSolid(1)), 0x0a01_694c),
             (Event::RgbAnim(RgbAnimType::InputSolid(8)), 0x0a08_694c),
             (Event::RgbAnim(RgbAnimType::InputSolid(255)), 0x0aff_694c),
+            (Event::RgbAnimChangeLayer(0), 0x0a00_434c),
+            (Event::RgbAnimChangeLayer(8), 0x0a08_434c),
         ] {
             let ser = serialize(event);
             println!("{:x} == {:x}", ser, serialized);
