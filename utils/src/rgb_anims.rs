@@ -95,6 +95,8 @@ pub struct RgbAnim {
     frame: u8,
     /// The current animation
     animation: RgbAnimType,
+    /// Saved animation
+    saved_animation: Option<RgbAnimType>,
 
     /// The LED data
     led_data: [RGB8; NUM_LEDS],
@@ -154,7 +156,8 @@ impl RgbAnim {
     pub fn new(is_right: bool, seed: u32) -> Self {
         RgbAnim {
             frame: 0,
-            animation: RgbAnimType::Pulse,
+            animation: RgbAnimType::Off,
+            saved_animation: None,
             led_data: [RGB8::default(); NUM_LEDS],
             is_right,
             color: RGB8::indexed(DEFAULT_COLOR_INDEX),
@@ -205,8 +208,8 @@ impl RgbAnim {
     /// Tick the animation
     pub fn tick(&mut self) -> &[RGB8; NUM_LEDS] {
         match self.animation {
-            RgbAnimType::Off => (),
-            RgbAnimType::SolidColor(_) => (),
+            RgbAnimType::Off => self.fill_color(RGB8::default()),
+            RgbAnimType::SolidColor(idx) => self.fill_color(RGB8::indexed(idx)),
             RgbAnimType::Wheel => self.tick_wheel(),
             RgbAnimType::Pulse => {
                 if self.frame % 128 == 0 {
@@ -242,6 +245,7 @@ impl RgbAnim {
         }
     }
 
+    /// Cycle to the next animation
     pub fn next_animation(&mut self) -> RgbAnimType {
         // Reset the frame
         self.frame = 0;
@@ -250,6 +254,10 @@ impl RgbAnim {
 
         match self.animation {
             RgbAnimType::Off => {
+                self.animation = RgbAnimType::SolidColor(0);
+                self.fill_color(RGB8::indexed(0));
+            }
+            RgbAnimType::SolidColor(i) if i == 0 => {
                 self.animation = RgbAnimType::SolidColor(DEFAULT_COLOR_INDEX);
                 self.fill_color(RGB8::indexed(DEFAULT_COLOR_INDEX));
             }
@@ -277,5 +285,34 @@ impl RgbAnim {
             }
         }
         self.animation
+    }
+
+    /// Set the Animation
+    pub fn set_animation(&mut self, animation: RgbAnimType) {
+        self.animation = animation;
+        self.frame = 0;
+        self.fill_color(RGB8::default());
+    }
+
+    /// Set the color of all leds to a solid color, temporarily
+    pub fn temporarily_solid_color(&mut self, color: u8) {
+        self.frame = 0;
+        if self.animation == RgbAnimType::Off {
+            return;
+        }
+        if self.saved_animation.is_none() {
+            self.saved_animation = Some(self.animation);
+        }
+        self.animation = RgbAnimType::SolidColor(color);
+        self.fill_color(RGB8::indexed(color));
+    }
+
+    /// Restore the animation
+    pub fn restore_animation(&mut self) {
+        self.frame = 0;
+        if let Some(animation) = self.saved_animation {
+            self.animation = animation;
+            self.saved_animation = None;
+        }
     }
 }
