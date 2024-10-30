@@ -28,15 +28,16 @@ pub type SmRx<'a> = StateMachine<'a, PIO1, { RX }>;
 pub type PioCommon<'a> = pio::Common<'a, PIO1>;
 pub type PioPin<'a> = pio::Pin<'a, PIO1>;
 
+const B: u32 = u32::from_le_bytes([b'P', 3, 7, b'\n']);
 pub async fn tx_loop<'a>(mut tx_sm: SmTx<'a>, status_led: &mut Output<'a>) {
-    let b = u32::from_le_bytes([b'P', 3, 7, b'\n']);
     loop {
         Timer::after_secs(2).await;
-        for n in [b, u32::MIN, u32::MAX].iter() {
+        for n in [B, u32::MIN, u32::MAX].iter() {
             info!("sending event 0x{:x} 0b{:b}", n, n);
             status_led.set_low();
             tx_sm.tx().wait_push(*n).await;
             status_led.set_high();
+            Timer::after_millis(10).await;
         }
         Timer::after_secs(1).await;
     }
@@ -45,8 +46,14 @@ pub async fn tx_loop<'a>(mut tx_sm: SmTx<'a>, status_led: &mut Output<'a>) {
 pub async fn rx_loop(mut rx_sm: SmRx<'_>) {
     info!("waiting for event");
     loop {
-        let v = rx_sm.rx().wait_pull().await;
-        info!("event received: 0x{:x} 0b{:b}", v, v);
+        for n in [B, u32::MIN, u32::MAX].iter() {
+            let v = rx_sm.rx().wait_pull().await;
+            info!(
+                "event received: 0x{:x} 0b{:b}, expecting 0x{:x} 0b{:b}",
+                v, v, *n, *n
+            );
+            assert_eq!(v, *n);
+        }
     }
 }
 
