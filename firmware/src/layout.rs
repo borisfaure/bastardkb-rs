@@ -2,11 +2,13 @@ use crate::hid::{KeyboardReport, HID_KB_CHANNEL};
 use crate::mouse::{MouseCommand, MOUSE_CMD_CHANNEL};
 use crate::pmw3360::{SensorCommand, SENSOR_CMD_CHANNEL};
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
+use crate::side::SIDE_CHANNEL;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
 use keyberon::key_code::KeyCode;
 use keyberon::layout::{CustomEvent as KbCustomEvent, Event as KBEvent, Layout};
+use utils::serde::Event;
 
 /// Basic layout for the keyboard
 #[cfg(feature = "keymap_basic")]
@@ -130,6 +132,7 @@ pub async fn layout_handler() {
     let mut layout = Layout::new(&LAYERS);
     let mut old_kb_report = KeyboardReport::default();
     let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
+    let mut current_layer = 0;
     loop {
         match select(ticker.next(), LAYOUT_CHANNEL.receive()).await {
             Either::First(_) => {
@@ -138,6 +141,15 @@ pub async fn layout_handler() {
                     layout.event(event);
                 }
                 let custom_event = layout.tick();
+                let new_layer = layout.current_layer();
+                if new_layer != current_layer {
+                    defmt::info!("Layer: {}", new_layer);
+                    let layer = new_layer as u8;
+                    SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
+                    ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
+                    current_layer = new_layer;
+                }
+
                 process_custom_event(custom_event).await;
                 let kb_report = generate_hid_kb_report(&mut layout);
                 if kb_report != old_kb_report {

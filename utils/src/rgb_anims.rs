@@ -257,7 +257,7 @@ impl RgbAnim {
                 self.animation = RgbAnimType::SolidColor(0);
                 self.fill_color(RGB8::indexed(0));
             }
-            RgbAnimType::SolidColor(i) if i == 0 => {
+            RgbAnimType::SolidColor(0) => {
                 self.animation = RgbAnimType::SolidColor(DEFAULT_COLOR_INDEX);
                 self.fill_color(RGB8::indexed(DEFAULT_COLOR_INDEX));
             }

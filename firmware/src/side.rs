@@ -1,4 +1,5 @@
 use crate::layout::LAYOUT_CHANNEL;
+use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use embassy_futures::select::{select, Either};
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::gpio::{Level, Output};
@@ -13,7 +14,7 @@ pub const USART_SPEED: u64 = 57600;
 
 /// Number of events in the channel to the other half of the keyboard
 const NB_EVENTS: usize = 64;
-/// Channel to send `keyberon::layout::event` events to the layout handler
+/// Channel to send `utils::serde::event` events to the layout handler
 pub static SIDE_CHANNEL: Channel<CriticalSectionRawMutex, Event, NB_EVENTS> = Channel::new();
 
 const TX: usize = 0;
@@ -68,7 +69,12 @@ pub async fn full_duplex_comm<'a>(
                             Event::Release(i, j) => {
                                 LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
                             }
-                            _ => todo!(),
+                            Event::RgbAnim(anim) => {
+                                ANIM_CHANNEL.send(AnimCommand::Set(anim)).await;
+                            }
+                            Event::RgbAnimChangeLayer(layer) => {
+                                ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
+                            }
                         }
                     }
                     Err(_) => {

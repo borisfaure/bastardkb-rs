@@ -23,6 +23,10 @@ pub static RGB_CHANNEL: Channel<CriticalSectionRawMutex, KbEvent, NB_EVENTS> = C
 pub enum AnimCommand {
     /// Set the next animation
     Next,
+    /// Change Layer
+    ChangeLayer(u8),
+    /// Set the animation
+    Set(RgbAnimType),
 }
 
 /// Channel to change the animation of the RGB LEDs
@@ -128,6 +132,16 @@ pub async fn run(
                 AnimCommand::Next => {
                     let new_anim = anim.next_animation();
                     defmt::info!("New animation: {:?}", defmt::Debug2Format(&new_anim));
+                }
+                AnimCommand::Set(new_anim) => {
+                    anim.set_animation(new_anim);
+                }
+                AnimCommand::ChangeLayer(layer) => {
+                    if layer == 0 {
+                        anim.restore_animation();
+                    } else {
+                        anim.temporarily_solid_color(layer);
+                    }
                 }
             },
             Either3::Third(_) => {
