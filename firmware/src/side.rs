@@ -33,15 +33,15 @@ pub async fn full_duplex_comm<'a>(
     status_led: &mut Output<'static>,
     is_right: bool,
 ) {
-    let (mut pin_rx, mut pin_tx) = if is_right {
+    let (mut pin_tx, mut pin_rx) = if is_right {
         (
-            pio_common.make_pio_pin(gpio_pin_29),
             pio_common.make_pio_pin(gpio_pin_1),
+            pio_common.make_pio_pin(gpio_pin_29),
         )
     } else {
         (
-            pio_common.make_pio_pin(gpio_pin_1),
             pio_common.make_pio_pin(gpio_pin_29),
+            pio_common.make_pio_pin(gpio_pin_1),
         )
     };
 
