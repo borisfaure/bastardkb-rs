@@ -1,8 +1,9 @@
 .program rx
     set pindirs 0            ; Set the pin as input
 start:
-    set   x, 31        [10]  ; Set the counter x to 31 (for 32 bits)
+    set   x, 31              ; Set the counter x to 31 (for 32 bits)
     wait  0 pin, 0           ; Wait for the pin to go low (start bit)
+    nop [12]                 ;
 bitloop:
     in    pins, 1            ; Read 1 bit from the pin and shift it into ISR
     jmp   x--, bitloop [6]   ; Decrement x and repeat 32 times (for 32 bits)

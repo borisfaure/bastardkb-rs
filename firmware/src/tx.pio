@@ -1,11 +1,12 @@
 .program tx_32
     set   pindirs 1          ; Set the pin as output
 start:
-    pull  block [6]          ; Pull 32 bits from the FIFO (blocking)
-    set   x, 31  [6]         ; Set the counter x to 31 (for 32 bits)
+    pull  block              ; Pull 32 bits from the FIFO (blocking)
+    set   x, 31              ; Set the counter x to 31 (for 32 bits)
     set pins, 0              ; Set low pin to start
+    nop [12]                 ;
 bitloop:
-    out   pins, 1         ; Send 1 bit from the FIFO to the pin
+    out   pins, 1            ; Send 1 bit from the FIFO to the pin
     jmp   x--, bitloop [6]   ; Decrement x and repeat 32 times (for 32 bits)
     set pins, 1              ; Set the TX pin high after transmission (idle)
     jmp start
