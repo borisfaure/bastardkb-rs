@@ -25,6 +25,66 @@ pub type SmTx<'a> = StateMachine<'a, PIO1, { TX }>;
 pub type PioCommon<'a> = pio::Common<'a, PIO1>;
 pub type PioPin<'a> = pio::Pin<'a, PIO1>;
 
+struct EventBuffer<'a, 'b> {
+    /// Buffer of events sent to the other half of the keyboard
+    buffer: [u32; 256],
+    /// Current sequence id
+    last_sid: u8,
+
+    /// State machine to send events
+    sm: SmTx<'a>,
+
+    // LED to light up when sending an event
+    status_led: &'b mut Output<'static>,
+}
+
+impl<'a, 'b> EventBuffer<'a, 'b> {
+    /// Create a new event buffer
+    pub fn new(sm: SmTx<'a>, status_led: &'b mut Output<'static>) -> Self {
+        Self {
+            buffer: [0; 256],
+            last_sid: u8::MAX,
+            sm,
+            status_led,
+        }
+    }
+
+    /// Replay events from the given sid
+    async fn replay_from(&mut self, first_sid: u8) {
+        let start = first_sid as usize;
+        let end = self.last_sid as usize;
+        // The buffer is a circular buffer, so we need to iterate from sid
+        // to the end of the buffer and then from the beginning of the buffer
+        // to `self.last_sid` excluded.
+        if start <= end {
+            for b in self.buffer[start..=end].iter() {
+                self.status_led.set_low();
+                self.sm.tx().wait_push(*b).await;
+                self.status_led.set_high();
+            }
+        } else {
+            for b in self.buffer[start..]
+                .iter()
+                .chain(self.buffer[..=end].iter())
+            {
+                self.status_led.set_low();
+                self.sm.tx().wait_push(*b).await;
+                self.status_led.set_high();
+            }
+        }
+    }
+
+    /// Send an event to the buffer and return its serialized value
+    pub async fn send(&mut self, event: Event) {
+        self.last_sid = self.last_sid.wrapping_add(1);
+        let b = serialize(event, self.last_sid);
+        self.buffer[self.last_sid as usize] = b;
+        self.status_led.set_low();
+        self.sm.tx().wait_push(b).await;
+        self.status_led.set_high();
+    }
+}
+
 pub async fn full_duplex_comm<'a>(
     mut pio_common: PioCommon<'a>,
     sm0: SmTx<'a>,
@@ -46,23 +106,45 @@ pub async fn full_duplex_comm<'a>(
         )
     };
 
-    let mut tx_sm = task_tx(&mut pio_common, sm0, &mut pin_tx);
+    let tx_sm = task_tx(&mut pio_common, sm0, &mut pin_tx);
     let mut rx_sm = task_rx(&mut pio_common, sm1, &mut pin_rx);
 
+    let mut tx_buffer = EventBuffer::new(tx_sm, status_led);
+    let mut next_rx_sid = 0;
+    let mut rx_on_error = false;
+    tx_buffer.send(Event::Hello).await;
     loop {
         match select(SIDE_CHANNEL.receive(), rx_sm.rx().wait_pull()).await {
             Either::First(event) => {
-                let b = serialize(event);
-                status_led.set_low();
-                tx_sm.tx().wait_push(b).await;
-                status_led.set_high();
+                tx_buffer.send(event).await;
             }
-            Either::Second(x) => {
-                status_led.set_low();
-                match deserialize(x) {
-                    Ok(event) => {
+            Either::Second(x) => match deserialize(x) {
+                Ok((event, sid)) => {
+                    if sid != next_rx_sid {
+                        defmt::warn!(
+                            "Invalid sid received: expected {}, got {}",
+                            next_rx_sid,
+                            sid
+                        );
+                        tx_buffer.send(Event::Error(next_rx_sid)).await;
+                        ANIM_CHANNEL.send(AnimCommand::Error).await;
+                        rx_on_error = true;
+                    } else {
                         defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
+                        next_rx_sid = sid.wrapping_add(1);
+                        if rx_on_error && !event.is_error() {
+                            ANIM_CHANNEL.send(AnimCommand::Fixed).await;
+                            rx_on_error = false;
+                        }
                         match event {
+                            Event::Error(err) => {
+                                defmt::warn!("Error event received");
+                                tx_buffer.replay_from(err).await;
+                            }
+                            Event::Hello => {
+                                tx_buffer.send(Event::Ack(sid)).await;
+                            }
+                            Event::Ack(_) => {}
                             Event::Press(i, j) => {
                                 LAYOUT_CHANNEL.send(KBEvent::Press(i, j)).await;
                             }
@@ -77,12 +159,14 @@ pub async fn full_duplex_comm<'a>(
                             }
                         }
                     }
-                    Err(_) => {
-                        defmt::warn!("Invalid event received: {:?}", x);
-                    }
                 }
-                status_led.set_high();
-            }
+                Err(_) => {
+                    defmt::warn!("Invalid event received: {:032x}", x);
+                    tx_buffer.send(Event::Error(next_rx_sid)).await;
+                    ANIM_CHANNEL.send(AnimCommand::Error).await;
+                    rx_on_error = true;
+                }
+            },
         }
     }
 }

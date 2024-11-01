@@ -11,7 +11,7 @@ use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
 use keyberon::layout::Event as KbEvent;
-use utils::rgb_anims::{RgbAnim, RGB8};
+use utils::rgb_anims::{RgbAnim, RgbAnimType, ERROR_COLOR_INDEX, RGB8};
 use {defmt_rtt as _, panic_probe as _};
 
 /// Number of events in the channel from keys
@@ -27,6 +27,10 @@ pub enum AnimCommand {
     ChangeLayer(u8),
     /// Set the animation
     Set(RgbAnimType),
+    /// On error
+    Error,
+    /// Error has been fixed
+    Fixed,
 }
 
 /// Channel to change the animation of the RGB LEDs
@@ -142,6 +146,12 @@ pub async fn run(
                     } else {
                         anim.temporarily_solid_color(layer);
                     }
+                }
+                AnimCommand::Error => {
+                    anim.temporarily_solid_color(ERROR_COLOR_INDEX);
+                }
+                AnimCommand::Fixed => {
+                    anim.restore_animation();
                 }
             },
             Either3::Third(_) => {
