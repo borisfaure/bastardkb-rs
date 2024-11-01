@@ -9,7 +9,7 @@ use fixed::{traits::ToFixed, types::U56F8};
 use keyberon::layout::Event as KBEvent;
 use utils::serde::{deserialize, serialize, Event};
 
-pub const USART_SPEED: u64 = 460800;
+pub const USART_SPEED: u64 = 57600;
 
 /// Number of events in the channel to the other half of the keyboard
 const NB_EVENTS: usize = 64;
