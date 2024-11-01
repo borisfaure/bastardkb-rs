@@ -20,7 +20,7 @@ use {defmt_rtt as _, panic_probe as _};
 bind_interrupts!(struct PioIrq1 {
     PIO1_IRQ_0 => PioInterruptHandler<PIO1>;
 });
-const USART_SPEED: u64 = 460800;
+const USART_SPEED: u64 = 57600;
 const TX: usize = 0;
 const RX: usize = 1;
 pub type SmTx<'a> = StateMachine<'a, PIO1, { TX }>;
@@ -28,12 +28,37 @@ pub type SmRx<'a> = StateMachine<'a, PIO1, { RX }>;
 pub type PioCommon<'a> = pio::Common<'a, PIO1>;
 pub type PioPin<'a> = pio::Pin<'a, PIO1>;
 
+const T0: u32 = u32::from_le_bytes([0, 0, 0, 0]);
+const T1: u32 = u32::from_le_bytes([1, 1, 1, 1]);
+const T2: u32 = u32::from_le_bytes([2, 2, 2, 2]);
+const T3: u32 = u32::from_le_bytes([3, 3, 3, 3]);
+const T4: u32 = u32::from_le_bytes([4, 4, 4, 4]);
+const T5: u32 = u32::from_le_bytes([5, 5, 5, 5]);
+const T6: u32 = u32::from_le_bytes([6, 6, 6, 6]);
+const T7: u32 = u32::from_le_bytes([7, 7, 7, 7]);
+const T8: u32 = u32::from_le_bytes([8, 8, 8, 8]);
+const T9: u32 = u32::from_le_bytes([9, 9, 9, 9]);
+const TA: u32 = u32::from_le_bytes([10, 10, 10, 10]);
+const TB: u32 = u32::from_le_bytes([11, 11, 11, 11]);
+const TC: u32 = u32::from_le_bytes([12, 12, 12, 12]);
+const TD: u32 = u32::from_le_bytes([13, 13, 13, 13]);
+const TE: u32 = u32::from_le_bytes([14, 14, 14, 14]);
+const TF: u32 = u32::from_le_bytes([15, 15, 15, 15]);
 const B: u32 = u32::from_le_bytes([b'P', 3, 7, b'\n']);
+const C: u32 = u32::from_le_bytes([0x33, 0, 0, 0x33]);
+const M: u32 = u32::from_le_bytes([0xff, 3, 7, 0xff]);
+const MAX: u32 = u32::MAX;
+
+const TEST_DATA: [u32; 25] = [
+    T0, T1, T3, T7, TA, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, TA, TB, TC, TD, TE, TF, B, C, M,
+    MAX,
+];
+
 pub async fn tx_loop<'a>(mut tx_sm: SmTx<'a>, status_led: &mut Output<'a>) {
     loop {
         Timer::after_secs(2).await;
-        for n in [B, u32::MIN, u32::MAX].iter() {
-            info!("sending event 0x{:x} 0b{:b}", n, n);
+        for n in TEST_DATA.iter() {
+            //info!("sending event 0x{:08x} 0b{:032b}", n, n);
             status_led.set_low();
             tx_sm.tx().wait_push(*n).await;
             status_led.set_high();
@@ -46,12 +71,16 @@ pub async fn tx_loop<'a>(mut tx_sm: SmTx<'a>, status_led: &mut Output<'a>) {
 pub async fn rx_loop(mut rx_sm: SmRx<'_>) {
     info!("waiting for event");
     loop {
-        for n in [B, u32::MIN, u32::MAX].iter() {
+        for n in TEST_DATA.iter() {
             let v = rx_sm.rx().wait_pull().await;
-            info!(
-                "event received: 0x{:x} 0b{:b}, expecting 0x{:x} 0b{:b}",
-                v, v, *n, *n
-            );
+            if v != *n {
+                info!(
+                    "event received failure: 0x{:08x} 0b{:032b}, expecting 0x{:08x} 0b{:032b}",
+                    v, v, *n, *n
+                );
+            } else {
+                info!("event received ok: 0x{:08x} 0b{:032b}", v, v);
+            }
             assert_eq!(v, *n);
         }
     }
