@@ -1,11 +1,10 @@
 //! Goal of this example is to demonstrate full-duplex communication using PIO
 //! state machines.
-//! On the cnano, the TRRS jack is plucket at the end so that what is sent is
-//! received back.
+//! This example is a simple echo server that sends back the received data.
 #![no_std]
 #![no_main]
 
-use defmt::{error, info};
+use defmt::info;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::clocks::clk_sys_freq;
@@ -13,7 +12,6 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{PIN_1, PIN_29, PIO1};
 use embassy_rp::pio::{self, Direction, FifoJoin, ShiftDirection, StateMachine};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
-use embassy_time::Timer;
 use fixed::{traits::ToFixed, types::U56F8};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -28,65 +26,6 @@ pub type SmRx<'a> = StateMachine<'a, PIO1, { RX }>;
 pub type PioCommon<'a> = pio::Common<'a, PIO1>;
 pub type PioPin<'a> = pio::Pin<'a, PIO1>;
 
-const T0: u32 = u32::from_le_bytes([0, 0, 0, 0]);
-const T1: u32 = u32::from_le_bytes([1, 1, 1, 1]);
-const T2: u32 = u32::from_le_bytes([2, 2, 2, 2]);
-const T3: u32 = u32::from_le_bytes([3, 3, 3, 3]);
-const T4: u32 = u32::from_le_bytes([4, 4, 4, 4]);
-const T5: u32 = u32::from_le_bytes([5, 5, 5, 5]);
-const T6: u32 = u32::from_le_bytes([6, 6, 6, 6]);
-const T7: u32 = u32::from_le_bytes([7, 7, 7, 7]);
-const T8: u32 = u32::from_le_bytes([8, 8, 8, 8]);
-const T9: u32 = u32::from_le_bytes([9, 9, 9, 9]);
-const TA: u32 = u32::from_le_bytes([10, 10, 10, 10]);
-const TB: u32 = u32::from_le_bytes([11, 11, 11, 11]);
-const TC: u32 = u32::from_le_bytes([12, 12, 12, 12]);
-const TD: u32 = u32::from_le_bytes([13, 13, 13, 13]);
-const TE: u32 = u32::from_le_bytes([14, 14, 14, 14]);
-const TF: u32 = u32::from_le_bytes([15, 15, 15, 15]);
-const B: u32 = u32::from_le_bytes([b'P', 3, 7, b'\n']);
-const C: u32 = u32::from_le_bytes([0x33, 0, 0, 0x33]);
-const M: u32 = u32::from_le_bytes([0xff, 3, 7, 0xff]);
-const MAX: u32 = u32::MAX;
-
-const TEST_DATA: [u32; 25] = [
-    T0, T1, T3, T7, TA, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, TA, TB, TC, TD, TE, TF, B, C, M,
-    MAX,
-];
-
-pub async fn tx_loop<'a>(mut tx_sm: SmTx<'a>) {
-    loop {
-        Timer::after_secs(2).await;
-        for n in TEST_DATA.iter() {
-            //info!("sending event 0x{:08x} 0b{:032b}", n, n);
-            tx_sm.tx().wait_push(*n).await;
-            Timer::after_millis(10).await;
-        }
-        Timer::after_secs(10).await;
-    }
-}
-
-pub async fn rx_loop(mut rx_sm: SmRx<'_>, status_led: &mut Output<'_>) {
-    info!("waiting for event");
-    loop {
-        for n in TEST_DATA.iter() {
-            let v = rx_sm.rx().wait_pull().await;
-            status_led.set_low();
-            if v != *n {
-                error!(
-                    "event received failure: 0x{:08x} 0b{:032b}, expecting 0x{:08x} 0b{:032b}",
-                    v, v, *n, *n
-                );
-            } else {
-                info!("event received ok: 0x{:08x} 0b{:032b}", v, v);
-            }
-            Timer::after_millis(10).await;
-            status_led.set_high();
-            assert_eq!(v, *n);
-        }
-    }
-}
-
 pub async fn full_duplex_comm<'a>(
     mut pio_common: PioCommon<'a>,
     sm0: SmTx<'a>,
@@ -95,13 +34,19 @@ pub async fn full_duplex_comm<'a>(
     gpio_pin_29: PIN_29,
     status_led: &mut Output<'a>,
 ) {
-    let mut pin_tx = pio_common.make_pio_pin(gpio_pin_29);
-    let mut pin_rx = pio_common.make_pio_pin(gpio_pin_1);
+    let mut pin_tx = pio_common.make_pio_pin(gpio_pin_1);
+    let mut pin_rx = pio_common.make_pio_pin(gpio_pin_29);
 
-    let tx_sm = task_tx(&mut pio_common, sm0, &mut pin_tx);
-    let rx_sm = task_rx(&mut pio_common, sm1, &mut pin_rx);
+    let mut tx_sm = task_tx(&mut pio_common, sm0, &mut pin_tx);
+    let mut rx_sm = task_rx(&mut pio_common, sm1, &mut pin_rx);
 
-    futures::future::join(tx_loop(tx_sm), rx_loop(rx_sm, status_led)).await;
+    info!("waiting for event");
+    loop {
+        let v = rx_sm.rx().wait_pull().await;
+        status_led.set_low();
+        tx_sm.tx().wait_push(v).await;
+        status_led.set_high();
+    }
 }
 
 fn pio_freq() -> fixed::FixedU32<fixed::types::extra::U8> {
