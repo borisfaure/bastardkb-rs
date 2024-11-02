@@ -6,6 +6,7 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{PIN_1, PIN_29, PIO1};
 use embassy_rp::pio::{self, Direction, FifoJoin, ShiftDirection, StateMachine};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embassy_time::{Duration, Ticker, Timer};
 use fixed::{traits::ToFixed, types::U56F8};
 use keyberon::layout::Event as KBEvent;
 use utils::serde::{deserialize, serialize, Event};
@@ -96,13 +97,13 @@ pub async fn full_duplex_comm<'a>(
 ) {
     let (mut pin_tx, mut pin_rx) = if is_right {
         (
-            pio_common.make_pio_pin(gpio_pin_1),
             pio_common.make_pio_pin(gpio_pin_29),
+            pio_common.make_pio_pin(gpio_pin_1),
         )
     } else {
         (
-            pio_common.make_pio_pin(gpio_pin_29),
             pio_common.make_pio_pin(gpio_pin_1),
+            pio_common.make_pio_pin(gpio_pin_29),
         )
     };
 
@@ -110,9 +111,90 @@ pub async fn full_duplex_comm<'a>(
     let mut rx_sm = task_rx(&mut pio_common, sm1, &mut pin_rx);
 
     let mut tx_buffer = EventBuffer::new(tx_sm, status_led);
-    let mut next_rx_sid = 0;
+    let mut next_rx_sid;
     let mut rx_on_error = false;
-    tx_buffer.send(Event::Hello).await;
+
+    /* handshake */
+    if is_right {
+        // Wait for the other side to boot
+        Timer::after_secs(2).await;
+        let mut ticker = Ticker::every(Duration::from_secs(2));
+        tx_buffer.send(Event::Hello).await;
+        /* Wait for the other side to acknowledge the hello */
+        loop {
+            match select(ticker.next(), rx_sm.rx().wait_pull()).await {
+                Either::First(_) => {
+                    defmt::info!("Timeout waiting for Ack, resending Hello");
+                    tx_buffer.send(Event::Hello).await;
+                }
+                Either::Second(x) => {
+                    match deserialize(x) {
+                        Ok((event, sid)) => match event {
+                            Event::Ack(ack_sid) => {
+                                defmt::warn!("[{}] Ack received about sid {}", sid, ack_sid);
+                                next_rx_sid = sid.wrapping_add(1);
+                                // Send Ack back to finish the handshake
+                                tx_buffer.send(Event::Ack(sid)).await;
+                                break;
+                            }
+                            Event::Error(r) => {
+                                defmt::warn!("[{}] Error received about sid {}", sid, r);
+                                tx_buffer.send(Event::Hello).await;
+                            }
+                            _ => {
+                                defmt::warn!(
+                                    "[{}] Invalid event received: {:?}",
+                                    sid,
+                                    defmt::Debug2Format(&event)
+                                );
+                                tx_buffer.send(Event::Hello).await;
+                            }
+                        },
+                        Err(_) => {
+                            defmt::warn!("Unable to deserialize event: 0x{:04x}", x);
+                            tx_buffer.send(Event::Hello).await;
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        loop {
+            let x = rx_sm.rx().wait_pull().await;
+            match deserialize(x) {
+                Ok((event, sid)) => match event {
+                    Event::Hello => {
+                        defmt::info!("HS: [{}] Hello received", sid);
+                        tx_buffer.send(Event::Ack(sid)).await;
+                    }
+                    Event::Ack(ack_sid) => {
+                        defmt::warn!("HS: [{}] Ack received about sid {}", sid, ack_sid);
+                        next_rx_sid = sid.wrapping_add(1);
+                        break;
+                    }
+                    Event::Error(r) => {
+                        defmt::warn!("HS: [{}] Error received about sid {}", sid, r);
+                        tx_buffer.send(Event::Ack(r)).await;
+                    }
+                    _ => {
+                        defmt::warn!(
+                            "HS: [{}] Invalid event received: {:?}",
+                            sid,
+                            defmt::Debug2Format(&event)
+                        );
+                        tx_buffer.send(Event::Error(sid)).await;
+                    }
+                },
+                Err(_) => {
+                    defmt::warn!("HS: Unable to deserialize event: 0x{:04x}", x);
+                    tx_buffer.send(Event::Error(0)).await;
+                }
+            }
+        }
+    }
+
+    defmt::info!("Handshake completed");
+
     loop {
         match select(SIDE_CHANNEL.receive(), rx_sm.rx().wait_pull()).await {
             Either::First(event) => {
@@ -137,14 +219,16 @@ pub async fn full_duplex_comm<'a>(
                             rx_on_error = false;
                         }
                         match event {
-                            Event::Error(err) => {
-                                defmt::warn!("Error event received");
-                                tx_buffer.replay_from(err).await;
-                            }
                             Event::Hello => {
+                                defmt::warn!("Hello received");
                                 tx_buffer.send(Event::Ack(sid)).await;
                             }
-                            Event::Ack(_) => {}
+                            Event::Ack(_) => {
+                                defmt::warn!("Unexpected Ack received");
+                            }
+                            Event::Error(r) => {
+                                tx_buffer.replay_from(r).await;
+                            }
                             Event::Press(i, j) => {
                                 LAYOUT_CHANNEL.send(KBEvent::Press(i, j)).await;
                             }
@@ -161,7 +245,7 @@ pub async fn full_duplex_comm<'a>(
                     }
                 }
                 Err(_) => {
-                    defmt::warn!("Invalid event received: {:032x}", x);
+                    defmt::warn!("Unable to deserialize event: 0x{:04x}", x);
                     tx_buffer.send(Event::Error(next_rx_sid)).await;
                     ANIM_CHANNEL.send(AnimCommand::Error).await;
                     rx_on_error = true;
