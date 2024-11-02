@@ -28,6 +28,7 @@ The firmware is based on the [Keyberon library](https://github.com/TeXitoi/keybe
 - Hold Tap actions
 - Sequences
 - CapsLock & NumLock
+- RGB underglow on per key basis
 
 ## On CapsLock & NumLock support
 
@@ -37,14 +38,36 @@ the keymap, to have a different behavior when CapsLock is set.
 
 The same occurs with NumLock but the event is on Col 1, Row 3.
 
+## On RGB underglow
+
+Few modes are available for the RGB underglow:
+
+ - `Off`: The RGB underglow is Off
+ - `SolidColor`: The RGB underglow is set to a static Color
+ - `Wheel`: The RGB underglow cycles through the colors of the rainbow
+ - `Pulse`: The RGB underglow pulses with a static color
+ - `PulseRainbow`: The RGB underglow pulses with the colors of the rainbow,
+   each pulse being a different color
+ - `Input`: Each key pressed will light up the RGB underglow with a different
+   color
+ - `InputSolid`: Each key pressed will light up the RGB underglow with a
+   static color
+
+On communication error, the RGB underglow will be lit in red.
+
+The first 8 layers each have a different color for the RGB underglow.  They
+are lid when a layer is active and the mode is not `Off`.
+
 ## What's missing
 
 - Support for controlling the trackball when the keyboard is plugged on the
   left side.
-- RGB underglow leds
 - Mouse acceleration
 - Combos
 - One Shot Actions
+- Hamming codes to improve the reliability of the communication between the
+  two halves of the keyboard
+- Switch to bootloader mode by pressing a key combination
 - ...
 
 
