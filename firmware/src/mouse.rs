@@ -136,8 +136,8 @@ impl<'a> MouseHandler<'a> {
         let mut report = MOUSE_REPORT_EMPTY;
         if self.ball_is_wheel {
             match self.dy {
-                y if y > WHEEL_THRESHOLD => report.wheel = 1,
-                y if y < -WHEEL_THRESHOLD => report.wheel = -1,
+                y if y > WHEEL_THRESHOLD => report.wheel = -1,
+                y if y < -WHEEL_THRESHOLD => report.wheel = 1,
                 _ => {}
             }
         } else {
