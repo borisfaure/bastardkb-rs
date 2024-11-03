@@ -62,7 +62,7 @@ pub struct MouseHandler<'a> {
 }
 
 /// Threshold to consider the movement as a wheel movement
-const WHEEL_THRESHOLD: i16 = 32;
+const WHEEL_THRESHOLD: i16 = 16;
 
 /// Empty mouse report
 const MOUSE_REPORT_EMPTY: MouseReport = MouseReport {
