@@ -20,6 +20,8 @@ const DEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
 
 /// RGB LED control
 const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
+/// Reset to USB Mass Storage
+const RST: Action<CustomEvent> = Action::Custom(ResetToUsbMassStorage);
 
 #[rustfmt::skip]
 /// Layout
@@ -33,6 +35,6 @@ pub static LAYERS: keyberon::layout::Layers<10, 4, 2, CustomEvent> = keyberon::l
         [ n  n  n  n  n      n  n  n  n  n ],
         [ n  n  n  n  n      n  n  n  n  n ],
         [ n  n  n  n  n      n  n  n  n  n ],
-        [ n {BIW} {INC} {DEC} {MLC}      {MRC} {MMC} {RGB} n  n ],
+        [ n {BIW} {INC} {DEC} {MLC}      {MRC} {MMC} {RGB} n {RST} ],
     }
 };

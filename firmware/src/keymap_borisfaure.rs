@@ -324,6 +324,9 @@ const MDEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
 /// RGB LED control
 const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
 
+/// Reset to USB Mass Storage
+const RST: Action<CustomEvent> = Action::Custom(ResetToUsbMassStorage);
+
 #[rustfmt::skip]
 /// Layout
 pub static LAYERS: keyberon::layout::Layers<10, 4, 9, CustomEvent> = keyberon::layout::layout! {
@@ -350,7 +353,7 @@ pub static LAYERS: keyberon::layout::Layers<10, 4, 9, CustomEvent> = keyberon::l
     } { /* 4: MISC or Mouse */
         [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       {MINC} {MWC}   n   n   n  ],
         [ {RGB}  VolDown          Mute         VolUp         n        n     {BIW} {MLC} n {MRC}],
-        [ n MediaPreviousSong  MediaPlayPause MediaNextSong  n       {MDEC} {MWC}   n   n   n  ],
+        [ {RST} MediaPreviousSong MediaPlayPause MediaNextSong n     {MDEC} {MWC}   n   n {RST}],
         [ {MRC}  n                {MLC}        {MWC}         n        n       n   {MRC} n {MLC}],
     } { /* 5: TMUX */
         [ {T_6}   {T_7} {T_8}   {T_9}   {T_0}      {T_1}   {T_2}  {T_3}   {T_4}   {T_5}   ],

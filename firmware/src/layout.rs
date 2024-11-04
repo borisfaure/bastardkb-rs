@@ -47,6 +47,8 @@ pub enum CustomEvent {
     DecreaseCpi,
     /// Next Animation of the RGB LEDs
     NextLedAnimation,
+    /// Reset to usb mass storage
+    ResetToUsbMassStorage,
 }
 
 /// Set a report as an error based on keycode `kc`
@@ -121,6 +123,11 @@ async fn process_custom_event(event: KbCustomEvent<CustomEvent>) {
             ANIM_CHANNEL.send(AnimCommand::Next).await;
         }
         KbCustomEvent::Release(CustomEvent::NextLedAnimation) => {}
+
+        KbCustomEvent::Press(CustomEvent::ResetToUsbMassStorage) => {
+            embassy_rp::rom_data::reset_to_usb_boot(0, 0);
+        }
+        KbCustomEvent::Release(CustomEvent::ResetToUsbMassStorage) => {}
 
         KbCustomEvent::NoEvent => (),
     }

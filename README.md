@@ -29,6 +29,7 @@ The firmware is based on the [Keyberon library](https://github.com/TeXitoi/keybe
 - Sequences
 - CapsLock & NumLock
 - RGB underglow on per key basis
+- Switch to bootloader mode to easily upgrade firmware by pressing a key combination
 
 ## On CapsLock & NumLock support
 
@@ -67,7 +68,6 @@ are lid when a layer is active and the mode is not `Off`.
 - One Shot Actions
 - Hamming codes to improve the reliability of the communication between the
   two halves of the keyboard
-- Switch to bootloader mode by pressing a key combination
 - ...
 
 
