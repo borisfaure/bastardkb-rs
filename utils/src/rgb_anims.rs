@@ -158,7 +158,7 @@ impl RgbAnim {
     pub fn new(is_right: bool, seed: u32) -> Self {
         RgbAnim {
             frame: 0,
-            animation: RgbAnimType::Off,
+            animation: RgbAnimType::SolidColor(0),
             saved_animation: None,
             led_data: [RGB8::default(); NUM_LEDS],
             is_right,
