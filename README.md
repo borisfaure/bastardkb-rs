@@ -66,8 +66,6 @@ are lid when a layer is active and the mode is not `Off`.
 - Mouse acceleration
 - Combos
 - One Shot Actions
-- Hamming codes to improve the reliability of the communication between the
-  two halves of the keyboard
 - ...
 
 
