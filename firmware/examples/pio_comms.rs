@@ -54,7 +54,7 @@ const TEST_DATA: [u32; 25] = [
     MAX,
 ];
 
-pub async fn tx_loop<'a>(mut tx_sm: SmTx<'a>) {
+pub async fn tx_loop(mut tx_sm: SmTx<'_>) {
     loop {
         Timer::after_secs(2).await;
         for n in TEST_DATA.iter() {
