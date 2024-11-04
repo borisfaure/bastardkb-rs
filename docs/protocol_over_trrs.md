@@ -18,9 +18,9 @@ sequenceDiagram
     participant L as Left
     participant R as Right
     autonumber
-    L ->> R : Hello
-    R ->> L: Ack(1)
-    L ->> R: Ack(2)_
+    R ->> L : Hello
+    L ->> R: Ack(1)
+    R ->> L: Ack(2)
 ```
 
 
