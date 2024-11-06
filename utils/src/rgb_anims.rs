@@ -1,6 +1,7 @@
 //! Compule LED Data to render RGB Animations
 
 use crate::prng::XorShift32;
+use crate::serde::Error as SerdeError;
 
 /// Number of LEDs on each side
 pub const NUM_LEDS: usize = 18;
@@ -25,6 +26,36 @@ pub enum RgbAnimType {
     Input,
     /// Highlight pressed keys with solid color
     InputSolid(u8), // Color index
+}
+
+impl RgbAnimType {
+    /// Serialize the RGB Animation Type to a u8
+    pub fn to_u8(&self) -> Result<u8, SerdeError> {
+        match self {
+            RgbAnimType::Off => Ok(0),
+            RgbAnimType::SolidColor(s) if *s < 32 => Ok((1 << 5) | s),
+            RgbAnimType::Wheel => Ok(2 << 5),
+            RgbAnimType::Pulse => Ok(3 << 5),
+            RgbAnimType::PulseSolid(s) if *s < 32 => Ok((4 << 5) | s),
+            RgbAnimType::Input => Ok(5 << 5),
+            RgbAnimType::InputSolid(s) if *s < 32 => Ok((6 << 5) | s),
+            _ => Err(SerdeError::Serialization),
+        }
+    }
+
+    /// Deserialize the RGB Animation Type from a u8
+    pub fn from_u8(value: u8) -> Result<Self, SerdeError> {
+        match value >> 5 {
+            0 => Ok(RgbAnimType::Off),
+            1 => Ok(RgbAnimType::SolidColor(value & 0x1f)),
+            2 => Ok(RgbAnimType::Wheel),
+            3 => Ok(RgbAnimType::Pulse),
+            4 => Ok(RgbAnimType::PulseSolid(value & 0x1f)),
+            5 => Ok(RgbAnimType::Input),
+            6 => Ok(RgbAnimType::InputSolid(value & 0x1f)),
+            _ => Err(SerdeError::Deserialization),
+        }
+    }
 }
 
 /// RGB Color
@@ -318,6 +349,32 @@ impl RgbAnim {
         if let Some(animation) = self.saved_animation {
             self.animation = animation;
             self.saved_animation = None;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rgb_anim_type_serde() {
+        let types = [
+            RgbAnimType::Off,
+            RgbAnimType::SolidColor(0),
+            RgbAnimType::SolidColor(31),
+            RgbAnimType::Wheel,
+            RgbAnimType::Pulse,
+            RgbAnimType::PulseSolid(0),
+            RgbAnimType::PulseSolid(31),
+            RgbAnimType::Input,
+            RgbAnimType::InputSolid(0),
+            RgbAnimType::InputSolid(31),
+        ];
+        for t in types.iter() {
+            let value = t.to_u8().unwrap();
+            let t2 = RgbAnimType::from_u8(value).unwrap();
+            assert_eq!(*t, t2);
         }
     }
 }

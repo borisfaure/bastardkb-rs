@@ -22,6 +22,7 @@ impl Event {
 
 #[derive(Debug)]
 pub enum Error {
+    Serialization,
     Deserialization,
 }
 
