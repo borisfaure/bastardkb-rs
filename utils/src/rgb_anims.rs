@@ -292,6 +292,9 @@ impl RgbAnim {
     /// Set the Animation
     pub fn set_animation(&mut self, animation: RgbAnimType) {
         self.animation = animation;
+        if self.saved_animation.is_some() {
+            self.saved_animation = Some(animation);
+        }
         self.frame = 0;
         self.fill_color(RGB8::default());
     }

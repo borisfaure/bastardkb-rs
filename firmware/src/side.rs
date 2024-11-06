@@ -139,6 +139,7 @@ pub async fn full_duplex_comm<'a>(
                             }
                             Event::Error(r) => {
                                 defmt::warn!("[{}] Error received about sid {}", sid, r);
+                                Timer::after_millis(10).await;
                                 tx_buffer.send(Event::Hello).await;
                             }
                             _ => {
@@ -147,11 +148,13 @@ pub async fn full_duplex_comm<'a>(
                                     sid,
                                     defmt::Debug2Format(&event)
                                 );
+                                Timer::after_millis(10).await;
                                 tx_buffer.send(Event::Hello).await;
                             }
                         },
                         Err(_) => {
                             defmt::warn!("Unable to deserialize event: 0x{:04x}", x);
+                            Timer::after_millis(10).await;
                             tx_buffer.send(Event::Hello).await;
                         }
                     }
@@ -174,6 +177,7 @@ pub async fn full_duplex_comm<'a>(
                     }
                     Event::Error(r) => {
                         defmt::warn!("HS: [{}] Error received about sid {}", sid, r);
+                        Timer::after_millis(10).await;
                         tx_buffer.send(Event::Ack(r)).await;
                     }
                     _ => {
@@ -182,11 +186,13 @@ pub async fn full_duplex_comm<'a>(
                             sid,
                             defmt::Debug2Format(&event)
                         );
+                        Timer::after_millis(10).await;
                         tx_buffer.send(Event::Error(sid)).await;
                     }
                 },
                 Err(_) => {
                     defmt::warn!("HS: Unable to deserialize event: 0x{:04x}", x);
+                    Timer::after_millis(10).await;
                     tx_buffer.send(Event::Error(0)).await;
                 }
             }
@@ -208,6 +214,7 @@ pub async fn full_duplex_comm<'a>(
                             next_rx_sid,
                             sid
                         );
+                        Timer::after_millis(10).await;
                         tx_buffer.send(Event::Error(next_rx_sid)).await;
                         ANIM_CHANNEL.send(AnimCommand::Error).await;
                         rx_on_error = true;
@@ -227,6 +234,7 @@ pub async fn full_duplex_comm<'a>(
                                 defmt::warn!("Unexpected Ack received");
                             }
                             Event::Error(r) => {
+                                Timer::after_millis(10).await;
                                 tx_buffer.replay_from(r).await;
                             }
                             Event::Press(i, j) => {
@@ -246,6 +254,7 @@ pub async fn full_duplex_comm<'a>(
                 }
                 Err(_) => {
                     defmt::warn!("Unable to deserialize event: 0x{:04x}", x);
+                    Timer::after_millis(10).await;
                     tx_buffer.send(Event::Error(next_rx_sid)).await;
                     ANIM_CHANNEL.send(AnimCommand::Error).await;
                     rx_on_error = true;
