@@ -5,5 +5,10 @@ edition.workspace = true
 authors.workspace = true
 
 [features]
-std = []
+defmt = []
 default = []
+
+[target.'cfg(not(target_arch = "x86_64"))'.dependencies]
+defmt = "0.3"
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+log = "0.4"

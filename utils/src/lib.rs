@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(target_arch = "x86_64"), no_std)]
 
 /// Serialization and deserialization of key events
 pub mod serde;
@@ -8,3 +8,6 @@ pub mod rgb_anims;
 
 /// Pseudo-random number generator
 pub mod prng;
+
+/// Logger
+pub mod log;

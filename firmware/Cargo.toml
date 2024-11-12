@@ -11,7 +11,7 @@ keymap_test = []
 default = ["keymap_borisfaure"]
 
 [dependencies]
-utils = {path = "../utils"}
+utils = {path = "../utils", features = ["defmt"]}
 embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
 embassy-sync = { git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
 embassy-executor = { git = "https://github.com/embassy-rs/embassy", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt", "integrated-timers"] }
