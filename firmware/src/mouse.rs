@@ -6,7 +6,7 @@ use embassy_rp::usb::Driver;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_usb::class::hid::HidWriter;
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum MouseCommand {
     PressRightClick = 1,
     ReleaseRightClick = 2,
@@ -26,7 +26,7 @@ pub static MOUSE_CMD_CHANNEL: Channel<CriticalSectionRawMutex, MouseCommand, NB_
     Channel::new();
 
 /// Mouse move event
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct MouseMove {
     /// Delta X
     pub dx: i16,

@@ -23,6 +23,7 @@ const NB_EVENTS: usize = 64;
 pub static RGB_CHANNEL: Channel<CriticalSectionRawMutex, KbEvent, NB_EVENTS> = Channel::new();
 
 /// Animation commands
+#[derive(Debug, defmt::Format)]
 pub enum AnimCommand {
     /// Set the next animation
     Next,

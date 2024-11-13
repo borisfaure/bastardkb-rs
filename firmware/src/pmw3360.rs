@@ -24,13 +24,13 @@ const DEFAULT_ANGLE_TUNE: u8 = 32;
 /// Sensor refresh rate, in ms
 const REFRESH_RATE_MS: u64 = 1;
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum SensorCommand {
     IncreaseCpi,
     DecreaseCpi,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, defmt::Format)]
 #[repr(u8)]
 enum Register {
     ProductId = 0x00,
@@ -84,14 +84,14 @@ enum Register {
     LiftCutOffTune2 = 0x65,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct BurstData {
     pub motion: bool,
     pub dx: i16,
     pub dy: i16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum Pmw3360Error {
     InvalidSignature,
     Spi(SpiError),

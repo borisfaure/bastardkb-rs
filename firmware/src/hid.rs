@@ -108,7 +108,7 @@ pub const MOUSE_REPORT_DESCRIPTOR: &[u8] = &[
 ];
 
 /// Keyboard HID report
-#[derive(Debug, Default, PartialEq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Clone, Copy, defmt::Format)]
 pub struct KeyboardReport {
     /// Modifier keys, in the following order (from least significant bit):
     /// - Left Control
@@ -141,7 +141,7 @@ impl KeyboardReport {
 }
 
 /// Mouse HID report
-#[derive(Debug, Default, PartialEq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Clone, Copy, defmt::Format)]
 pub struct MouseReport {
     /// Buttons state
     /// Button 1 to 8 where Button1 is the LSB

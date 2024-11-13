@@ -31,7 +31,7 @@ pub static LAYOUT_CHANNEL: Channel<CriticalSectionRawMutex, KBEvent, NB_EVENTS> 
 
 /// Custom events for the layout, mostly mouse events
 //#[allow(clippy::enum_variant_names)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, defmt::Format)]
 pub enum CustomEvent {
     /// Mouse left click
     MouseLeftClick,
@@ -160,7 +160,6 @@ pub async fn layout_handler() {
                 process_custom_event(custom_event).await;
                 let kb_report = generate_hid_kb_report(&mut layout);
                 if kb_report != old_kb_report {
-                    //defmt::info!("KB Report: {:?}", defmt::Debug2Format(&kb_report));
                     HID_KB_CHANNEL.send(kb_report).await;
                     old_kb_report = kb_report;
                 }
