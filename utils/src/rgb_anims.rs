@@ -1,5 +1,6 @@
 //! Compule LED Data to render RGB Animations
 
+use crate::log::*;
 use crate::prng::XorShift32;
 use crate::serde::Error as SerdeError;
 
@@ -12,6 +13,7 @@ pub const COLS: usize = 5;
 
 /// RGB Animation Type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum RgbAnimType {
     /// No animation, leds are off
     Off,
@@ -60,6 +62,7 @@ impl RgbAnimType {
 
 /// RGB Color
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct RGB8 {
     /// Red
     pub r: u8,
@@ -284,8 +287,13 @@ impl RgbAnim {
         self.frame = 0;
         // Shutdown the leds
         self.fill_color(RGB8::default());
+        let anim = if let Some(saved_animation) = self.saved_animation {
+            saved_animation
+        } else {
+            self.animation
+        };
 
-        match self.animation {
+        match anim {
             RgbAnimType::Off => {
                 self.animation = RgbAnimType::SolidColor(0);
                 self.fill_color(RGB8::indexed(0));
@@ -316,6 +324,9 @@ impl RgbAnim {
                 self.animation = RgbAnimType::Off;
                 self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
             }
+        }
+        if self.saved_animation.is_some() {
+            self.saved_animation = Some(self.animation);
         }
         self.animation
     }

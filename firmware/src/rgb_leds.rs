@@ -1,3 +1,4 @@
+use crate::side::SIDE_CHANNEL;
 use embassy_futures::select::{select3, Either3};
 use embassy_rp::dma::{AnyChannel, Channel as DmaChannel};
 use embassy_rp::peripherals::PIO0;
@@ -12,6 +13,8 @@ use fixed::types::U24F8;
 use fixed_macro::fixed;
 use keyberon::layout::Event as KbEvent;
 use utils::rgb_anims::{RgbAnim, RgbAnimType, ERROR_COLOR_INDEX, RGB8};
+use utils::serde::Event;
+
 use {defmt_rtt as _, panic_probe as _};
 
 /// Number of events in the channel from keys
@@ -135,6 +138,7 @@ pub async fn run(
             Either3::Second(cmd) => match cmd {
                 AnimCommand::Next => {
                     let new_anim = anim.next_animation();
+                    SIDE_CHANNEL.send(Event::RgbAnim(new_anim)).await;
                     defmt::info!("New animation: {:?}", defmt::Debug2Format(&new_anim));
                 }
                 AnimCommand::Set(new_anim) => {
