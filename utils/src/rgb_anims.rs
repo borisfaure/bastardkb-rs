@@ -333,6 +333,7 @@ impl RgbAnim {
 
     /// Set the Animation
     pub fn set_animation(&mut self, animation: RgbAnimType) {
+        info!("Set animation: {:?}", animation);
         self.animation = animation;
         if self.saved_animation.is_some() {
             self.saved_animation = Some(animation);
