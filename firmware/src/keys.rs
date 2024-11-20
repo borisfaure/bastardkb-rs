@@ -12,6 +12,8 @@ use utils::serde::Event;
 pub const ROWS: usize = 4;
 /// Keyboard matrix columns
 pub const COLS: usize = 5;
+/// Full number of columns
+pub const FULL_COLS: usize = 2 * COLS;
 /// Keyboard matrix refresh rate, in Hz
 const REFRESH_RATE: u16 = 1000;
 /// Keyboard matrix debouncing time, in ms

@@ -1,3 +1,4 @@
+use crate::keys::{FULL_COLS, ROWS};
 use crate::layout::CustomEvent::{self, *};
 use core::fmt::Debug;
 use keyberon::action::{
@@ -7,8 +8,11 @@ use keyberon::action::{
 use keyberon::key_code::KeyCode::*;
 use keyberon::layout::Layout;
 
+/// Number of layers
+pub const NB_LAYERS: usize = 2;
+
 /// Keyboard Layout type to mask the number of layers
-pub type KBLayout = Layout<10, 4, 2, CustomEvent>;
+pub type KBLayout = Layout<FULL_COLS, ROWS, NB_LAYERS, CustomEvent>;
 
 /// A shortcut to create a `Action::Sequence`, useful to
 /// create compact layout.
@@ -44,7 +48,7 @@ const RST: Action<CustomEvent> = Action::Custom(ResetToUsbMassStorage);
 
 #[rustfmt::skip]
 /// Layout
-pub static LAYERS: keyberon::layout::Layers<10, 4, 2, CustomEvent> = keyberon::layout::layout! {
+pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEvent> = keyberon::layout::layout! {
     { // 0: Base Layer
         [ {QQ}  W   E   R  T      Y  U  I  O  P ],
         [  A   S   D   F  G      H  J  K  L  ; ],

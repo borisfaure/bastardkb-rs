@@ -1,3 +1,4 @@
+use crate::keys::{FULL_COLS, ROWS};
 use crate::layout::CustomEvent;
 use crate::layout::CustomEvent::*;
 use core::fmt::Debug;
@@ -8,8 +9,11 @@ use keyberon::action::{
 use keyberon::key_code::KeyCode::*;
 use keyberon::layout::Layout;
 
+/// Number of layers
+pub const NB_LAYERS: usize = 9;
+
 /// Keyboard Layout type to mask the number of layers
-pub type KBLayout = Layout<10, 4, 9, CustomEvent>;
+pub type KBLayout = Layout<FULL_COLS, ROWS, NB_LAYERS, CustomEvent>;
 
 /// Timeout to consider a key as held
 const TIMEOUT: u16 = 200;
