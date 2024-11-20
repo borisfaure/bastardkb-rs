@@ -11,3 +11,6 @@ pub mod prng;
 
 /// Logger
 pub mod log;
+
+/// Mouse moves
+pub mod mouse_move;
