@@ -1,10 +1,7 @@
-use crate::device::is_host;
 use crate::hid::MouseReport;
+use crate::{device::is_host, hid::HID_MOUSE_CHANNEL};
 use embassy_futures::select::{select, Either};
-use embassy_rp::peripherals::USB;
-use embassy_rp::usb::Driver;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
-use embassy_usb::class::hid::HidWriter;
 
 #[derive(Debug, defmt::Format)]
 pub enum MouseCommand {
@@ -41,7 +38,7 @@ pub static MOUSE_MOVE_CHANNEL: Channel<CriticalSectionRawMutex, MouseMove, NB_MO
     Channel::new();
 
 /// Mouse handler
-pub struct MouseHandler<'a> {
+pub struct MouseHandler {
     /// Left click is pressed
     left_click: bool,
     /// Right click is pressed
@@ -56,9 +53,6 @@ pub struct MouseHandler<'a> {
     dx: i16,
     /// Direction Y
     dy: i16,
-
-    /// HID writer
-    hid_writer: HidWriter<'a, Driver<'a, USB>, 64>,
 }
 
 /// Threshold to consider the movement as a wheel movement
@@ -73,9 +67,9 @@ const MOUSE_REPORT_EMPTY: MouseReport = MouseReport {
     pan: 0,
 };
 
-impl<'a> MouseHandler<'a> {
+impl MouseHandler {
     /// Create a new mouse handler
-    pub fn new(hid_writer: HidWriter<'a, Driver<'a, USB>, 64>) -> Self {
+    pub fn new() -> Self {
         MouseHandler {
             left_click: false,
             right_click: false,
@@ -83,7 +77,6 @@ impl<'a> MouseHandler<'a> {
             ball_is_wheel: false,
             dx: 0,
             dy: 0,
-            hid_writer,
         }
     }
 
@@ -122,11 +115,7 @@ impl<'a> MouseHandler<'a> {
             }
             if is_host() {
                 let hid_report = self.generate_hid_report();
-                let raw = hid_report.serialize();
-                match self.hid_writer.write(&raw).await {
-                    Ok(()) => {}
-                    Err(e) => defmt::warn!("Failed to send report: {:?}", e),
-                }
+                HID_MOUSE_CHANNEL.send(hid_report).await;
             }
         }
     }
