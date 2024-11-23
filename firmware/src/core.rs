@@ -53,44 +53,50 @@ pub enum CustomEvent {
 
 pub struct Core {
     layout: KBLayout,
+    current_layer: usize,
+    kb_report: KeyboardReport,
 }
 
 impl Core {
     pub fn new() -> Self {
         Self {
             layout: Layout::new(&LAYERS),
+            current_layer: 0,
+            kb_report: KeyboardReport::default(),
+        }
+    }
+
+    async fn tick(&mut self) {
+        // Process all events in the channel if any
+        while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
+            self.layout.event(event);
+        }
+        let custom_event = self.layout.tick();
+        let new_layer = self.layout.current_layer();
+        if new_layer != self.current_layer {
+            defmt::info!("Layer: {}", new_layer);
+            self.current_layer = new_layer;
+            let layer = new_layer as u8;
+            SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
+            ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
+        }
+
+        process_custom_event(custom_event).await;
+        let new_kb_report = generate_hid_kb_report(&mut self.layout);
+        if new_kb_report != self.kb_report {
+            self.kb_report = new_kb_report;
+            HID_KB_CHANNEL.send(new_kb_report).await;
         }
     }
 
     /// Keyboard layout handler
     /// Handles layout events into the keymap and sends HID reports to the HID handler
     pub async fn run(&mut self) {
-        let mut old_kb_report = KeyboardReport::default();
         let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
-        let mut current_layer = 0;
         loop {
             match select(ticker.next(), LAYOUT_CHANNEL.receive()).await {
                 Either::First(_) => {
-                    // Process all events in the channel if any
-                    while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
-                        self.layout.event(event);
-                    }
-                    let custom_event = self.layout.tick();
-                    let new_layer = self.layout.current_layer();
-                    if new_layer != current_layer {
-                        defmt::info!("Layer: {}", new_layer);
-                        let layer = new_layer as u8;
-                        SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
-                        ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
-                        current_layer = new_layer;
-                    }
-
-                    process_custom_event(custom_event).await;
-                    let kb_report = generate_hid_kb_report(&mut self.layout);
-                    if kb_report != old_kb_report {
-                        HID_KB_CHANNEL.send(kb_report).await;
-                        old_kb_report = kb_report;
-                    }
+                    self.tick().await;
                 }
                 Either::Second(event) => {
                     self.layout.event(event);
