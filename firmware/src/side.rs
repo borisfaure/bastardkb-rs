@@ -1,4 +1,4 @@
-use crate::layout::LAYOUT_CHANNEL;
+use crate::core::LAYOUT_CHANNEL;
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use embassy_futures::select::{select, Either};
 use embassy_rp::clocks::clk_sys_freq;

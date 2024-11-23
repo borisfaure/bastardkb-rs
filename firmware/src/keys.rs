@@ -1,5 +1,5 @@
+use crate::core::LAYOUT_CHANNEL;
 use crate::device::is_host;
-use crate::layout::LAYOUT_CHANNEL;
 use crate::rgb_leds::RGB_CHANNEL;
 use crate::side::SIDE_CHANNEL;
 use embassy_rp::gpio::{Input, Output};

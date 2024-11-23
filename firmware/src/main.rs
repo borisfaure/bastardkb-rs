@@ -17,14 +17,14 @@ use embassy_usb::{Builder, Config as USBConfig};
 use futures::future;
 use {defmt_rtt as _, panic_probe as _};
 
+/// Layout events processing
+mod core;
 /// Device
 mod device;
 /// USB HID configuration
 mod hid;
 /// Key handling
 mod keys;
-/// Layout events processing
-mod layout;
 /// Mouse handling
 mod mouse;
 /// PMW3360 sensor
@@ -194,7 +194,7 @@ async fn main(spawner: Spawner) {
     );
     let pio0 = Pio::new(p.PIO0, PioIrq0);
     let rgb_leds_fut = rgb_leds::run(pio0.common, pio0.sm0, p.DMA_CH0, p.PIN_0, is_right);
-    let layout_fut = layout::layout_handler();
+    let layout_fut = core::layout_handler();
     let matrix_fut = matrix_scanner(matrix, is_right);
     let mut mouse_handler = MouseHandler::new(hid_mouse);
     let mouse_fut = mouse_handler.run();

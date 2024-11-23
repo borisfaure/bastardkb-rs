@@ -1,5 +1,5 @@
+use crate::core::CustomEvent::{self, *};
 use crate::keys::{FULL_COLS, ROWS};
-use crate::layout::CustomEvent::{self, *};
 use keyberon::action::Action;
 use keyberon::layout::Layout;
 

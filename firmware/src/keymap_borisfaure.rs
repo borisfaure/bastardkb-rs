@@ -1,6 +1,5 @@
+use crate::core::CustomEvent::{self, *};
 use crate::keys::{FULL_COLS, ROWS};
-use crate::layout::CustomEvent;
-use crate::layout::CustomEvent::*;
 use core::fmt::Debug;
 use keyberon::action::{
     d, k, l, m, Action, HoldTapAction, HoldTapConfig,
