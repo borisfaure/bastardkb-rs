@@ -19,6 +19,7 @@ use {defmt_rtt as _, panic_probe as _};
 
 /// Layout events processing
 mod core;
+use core::Core;
 /// Device
 mod device;
 /// USB HID configuration
@@ -194,7 +195,8 @@ async fn main(spawner: Spawner) {
     );
     let pio0 = Pio::new(p.PIO0, PioIrq0);
     let rgb_leds_fut = rgb_leds::run(pio0.common, pio0.sm0, p.DMA_CH0, p.PIN_0, is_right);
-    let layout_fut = core::layout_handler();
+    let mut core = Core::new();
+    let layout_fut = core.run();
     let matrix_fut = matrix_scanner(matrix, is_right);
     let mut mouse_handler = MouseHandler::new(hid_mouse);
     let mouse_fut = mouse_handler.run();

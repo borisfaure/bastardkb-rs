@@ -51,6 +51,55 @@ pub enum CustomEvent {
     ResetToUsbMassStorage,
 }
 
+pub struct Core {
+    layout: KBLayout,
+}
+
+impl Core {
+    pub fn new() -> Self {
+        Self {
+            layout: Layout::new(&LAYERS),
+        }
+    }
+
+    /// Keyboard layout handler
+    /// Handles layout events into the keymap and sends HID reports to the HID handler
+    pub async fn run(&mut self) {
+        let mut old_kb_report = KeyboardReport::default();
+        let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
+        let mut current_layer = 0;
+        loop {
+            match select(ticker.next(), LAYOUT_CHANNEL.receive()).await {
+                Either::First(_) => {
+                    // Process all events in the channel if any
+                    while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
+                        self.layout.event(event);
+                    }
+                    let custom_event = self.layout.tick();
+                    let new_layer = self.layout.current_layer();
+                    if new_layer != current_layer {
+                        defmt::info!("Layer: {}", new_layer);
+                        let layer = new_layer as u8;
+                        SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
+                        ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
+                        current_layer = new_layer;
+                    }
+
+                    process_custom_event(custom_event).await;
+                    let kb_report = generate_hid_kb_report(&mut self.layout);
+                    if kb_report != old_kb_report {
+                        HID_KB_CHANNEL.send(kb_report).await;
+                        old_kb_report = kb_report;
+                    }
+                }
+                Either::Second(event) => {
+                    self.layout.event(event);
+                }
+            };
+        }
+    }
+}
+
 /// Set a report as an error based on keycode `kc`
 fn keyboard_report_set_error(report: &mut KeyboardReport, kc: KeyCode) {
     report.modifier = 0;
@@ -130,43 +179,5 @@ async fn process_custom_event(event: KbCustomEvent<CustomEvent>) {
         KbCustomEvent::Release(CustomEvent::ResetToUsbMassStorage) => {}
 
         KbCustomEvent::NoEvent => (),
-    }
-}
-
-/// Keyboard layout handler
-/// Handles layout events into the keymap and sends HID reports to the HID handler
-pub async fn layout_handler() {
-    let mut layout = Layout::new(&LAYERS);
-    let mut old_kb_report = KeyboardReport::default();
-    let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
-    let mut current_layer = 0;
-    loop {
-        match select(ticker.next(), LAYOUT_CHANNEL.receive()).await {
-            Either::First(_) => {
-                // Process all events in the channel if any
-                while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
-                    layout.event(event);
-                }
-                let custom_event = layout.tick();
-                let new_layer = layout.current_layer();
-                if new_layer != current_layer {
-                    defmt::info!("Layer: {}", new_layer);
-                    let layer = new_layer as u8;
-                    SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
-                    ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
-                    current_layer = new_layer;
-                }
-
-                process_custom_event(custom_event).await;
-                let kb_report = generate_hid_kb_report(&mut layout);
-                if kb_report != old_kb_report {
-                    HID_KB_CHANNEL.send(kb_report).await;
-                    old_kb_report = kb_report;
-                }
-            }
-            Either::Second(event) => {
-                layout.event(event);
-            }
-        };
     }
 }
