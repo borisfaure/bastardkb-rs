@@ -1,6 +1,5 @@
 use crate::hid::MouseReport;
 use crate::{device::is_host, hid::HID_MOUSE_CHANNEL};
-use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 
 #[derive(Debug, defmt::Format)]
@@ -101,25 +100,22 @@ impl MouseHandler {
     }
 
     /// Compute the state of the mouse. Called every 1ms
-    pub async fn run(&mut self) {
-        loop {
-            match select(MOUSE_CMD_CHANNEL.receive(), MOUSE_MOVE_CHANNEL.receive()).await {
-                Either::First(event) => self.handle_command_event(event),
-                Either::Second(event) => self.handle_move_event(event),
+    pub async fn tick(&mut self) {
+        let mut changed = false;
+        while let Ok(event) = MOUSE_CMD_CHANNEL.try_receive() {
+            self.handle_command_event(event);
+            changed = true;
+        }
+        while let Ok(event) = MOUSE_MOVE_CHANNEL.try_receive() {
+            self.handle_move_event(event);
+            changed = true;
+        }
+        if changed && is_host() {
+            let hid_report = self.generate_hid_report();
+            if HID_MOUSE_CHANNEL.is_full() {
+                defmt::error!("HID mouse channel is full");
             }
-            if let Ok(event) = MOUSE_CMD_CHANNEL.try_receive() {
-                self.handle_command_event(event);
-            }
-            if let Ok(event) = MOUSE_MOVE_CHANNEL.try_receive() {
-                self.handle_move_event(event);
-            }
-            if is_host() {
-                let hid_report = self.generate_hid_report();
-                if HID_MOUSE_CHANNEL.is_full() {
-                    defmt::error!("HID mouse channel is full");
-                }
-                HID_MOUSE_CHANNEL.send(hid_report).await;
-            }
+            HID_MOUSE_CHANNEL.send(hid_report).await;
         }
     }
 

@@ -5,7 +5,6 @@ use crate::hid::{
     hid_kb_writer_handler, hid_mouse_writer, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR,
 };
 use crate::keys::{matrix_scanner, Matrix};
-use crate::mouse::MouseHandler;
 use crate::pmw3360::Pmw3360;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
@@ -201,8 +200,6 @@ async fn main(spawner: Spawner) {
     let mut core = Core::new();
     let layout_fut = core.run();
     let matrix_fut = matrix_scanner(matrix, is_right);
-    let mut mouse_handler = MouseHandler::new();
-    let mouse_fut = mouse_handler.run();
 
     if is_right {
         let mut ball = {
@@ -227,18 +224,17 @@ async fn main(spawner: Spawner) {
         };
         let ball_sensor_fut = ball.run();
         defmt::info!("let's go!");
-        future::join4(
+        future::join3(
             future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
-            future::join(matrix_fut, layout_fut),
+            future::join3(matrix_fut, layout_fut, ball_sensor_fut),
             future::join3(hid_kb_reader_fut, hid_kb_writer_fut, hid_mouse_writer_fut),
-            future::join(ball_sensor_fut, mouse_fut),
         )
         .await;
     } else {
         defmt::info!("let's go!");
         future::join3(
             future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
-            future::join3(matrix_fut, layout_fut, mouse_fut),
+            future::join(matrix_fut, layout_fut),
             future::join3(hid_kb_reader_fut, hid_kb_writer_fut, hid_mouse_writer_fut),
         )
         .await;

@@ -1,4 +1,5 @@
 use crate::hid::{KeyboardReport, HID_KB_CHANNEL};
+use crate::mouse::MouseHandler;
 use crate::mouse::{MouseCommand, MOUSE_CMD_CHANNEL};
 use crate::pmw3360::{SensorCommand, SENSOR_CMD_CHANNEL};
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
@@ -56,6 +57,7 @@ pub struct Core {
     current_layer: usize,
     kb_report: KeyboardReport,
     tick: u32,
+    mouse: MouseHandler,
 }
 
 impl Core {
@@ -65,6 +67,7 @@ impl Core {
             current_layer: 0,
             kb_report: KeyboardReport::default(),
             tick: 0,
+            mouse: MouseHandler::new(),
         }
     }
 
@@ -102,6 +105,7 @@ impl Core {
             }
             HID_KB_CHANNEL.send(new_kb_report).await;
         }
+        self.mouse.tick().await;
     }
 
     /// Process a custom event from the layout
