@@ -55,6 +55,7 @@ pub struct Core {
     layout: KBLayout,
     current_layer: usize,
     kb_report: KeyboardReport,
+    tick: u32,
 }
 
 impl Core {
@@ -63,10 +64,15 @@ impl Core {
             layout: Layout::new(&LAYERS),
             current_layer: 0,
             kb_report: KeyboardReport::default(),
+            tick: 0,
         }
     }
 
     async fn tick(&mut self) {
+        self.tick += 1;
+        if self.tick % 2000 == 0 {
+            defmt::info!("Tick: {} (every 2s?)", self.tick);
+        }
         // Process all events in the channel if any
         while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
             self.layout.event(event);
