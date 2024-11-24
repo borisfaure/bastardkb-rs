@@ -1,6 +1,5 @@
 use crate::hid::{KeyboardReport, HID_KB_CHANNEL};
 use crate::mouse::MouseHandler;
-use crate::mouse::{MouseCommand, MOUSE_CMD_CHANNEL};
 use crate::pmw3360::{SensorCommand, SENSOR_CMD_CHANNEL};
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use crate::side::SIDE_CHANNEL;
@@ -82,6 +81,16 @@ impl Core {
         }
         let custom_event = self.layout.tick();
         let new_layer = self.layout.current_layer();
+        self.process_custom_event(custom_event).await;
+        let new_kb_report = generate_hid_kb_report(&mut self.layout);
+        if new_kb_report != self.kb_report {
+            self.kb_report = new_kb_report;
+            if HID_KB_CHANNEL.is_full() {
+                defmt::error!("HID KB channel is full");
+            }
+            HID_KB_CHANNEL.send(new_kb_report).await;
+        }
+        self.mouse.tick().await;
         if new_layer != self.current_layer {
             defmt::info!("Layer: {}", new_layer);
             self.current_layer = new_layer;
@@ -95,75 +104,34 @@ impl Core {
             }
             ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
         }
-
-        self.process_custom_event(custom_event).await;
-        let new_kb_report = generate_hid_kb_report(&mut self.layout);
-        if new_kb_report != self.kb_report {
-            self.kb_report = new_kb_report;
-            if HID_KB_CHANNEL.is_full() {
-                defmt::error!("HID KB channel is full");
-            }
-            HID_KB_CHANNEL.send(new_kb_report).await;
-        }
-        self.mouse.tick().await;
     }
 
     /// Process a custom event from the layout
     async fn process_custom_event(&mut self, event: KbCustomEvent<CustomEvent>) {
         match event {
             KbCustomEvent::Press(CustomEvent::MouseLeftClick) => {
-                if MOUSE_CMD_CHANNEL.is_full() {
-                    defmt::error!("Mouse channel is full");
-                }
-                MOUSE_CMD_CHANNEL.send(MouseCommand::PressLeftClick).await;
+                self.mouse.on_left_click(true);
             }
             KbCustomEvent::Release(CustomEvent::MouseLeftClick) => {
-                if MOUSE_CMD_CHANNEL.is_full() {
-                    defmt::error!("Mouse channel is full");
-                }
-                MOUSE_CMD_CHANNEL.send(MouseCommand::ReleaseLeftClick).await;
+                self.mouse.on_left_click(false);
             }
             KbCustomEvent::Press(CustomEvent::MouseRightClick) => {
-                if MOUSE_CMD_CHANNEL.is_full() {
-                    defmt::error!("Mouse channel is full");
-                }
-                MOUSE_CMD_CHANNEL.send(MouseCommand::PressRightClick).await;
+                self.mouse.on_right_click(true);
             }
             KbCustomEvent::Release(CustomEvent::MouseRightClick) => {
-                if MOUSE_CMD_CHANNEL.is_full() {
-                    defmt::error!("Mouse channel is full");
-                }
-                MOUSE_CMD_CHANNEL
-                    .send(MouseCommand::ReleaseRightClick)
-                    .await;
+                self.mouse.on_right_click(false);
             }
             KbCustomEvent::Press(CustomEvent::MouseWheelClick) => {
-                if MOUSE_CMD_CHANNEL.is_full() {
-                    defmt::error!("Mouse channel is full");
-                }
-                MOUSE_CMD_CHANNEL.send(MouseCommand::PressWheelClick).await;
+                self.mouse.on_middle_click(true);
             }
             KbCustomEvent::Release(CustomEvent::MouseWheelClick) => {
-                if MOUSE_CMD_CHANNEL.is_full() {
-                    defmt::error!("Mouse channel is full");
-                }
-                MOUSE_CMD_CHANNEL
-                    .send(MouseCommand::ReleaseWheelClick)
-                    .await;
+                self.mouse.on_middle_click(false);
             }
             KbCustomEvent::Press(CustomEvent::BallIsWheel) => {
-                if MOUSE_CMD_CHANNEL.is_full() {
-                    defmt::error!("Mouse channel is full");
-                }
-                MOUSE_CMD_CHANNEL.send(MouseCommand::PressBallIsWheel).await;
+                self.mouse.on_ball_is_wheel(true);
             }
             KbCustomEvent::Release(CustomEvent::BallIsWheel) => {
-                if MOUSE_CMD_CHANNEL.is_full() {
-                    defmt::error!("Mouse channel is full");
-                }
-                MOUSE_CMD_CHANNEL
-                    .send(MouseCommand::ReleaseBallIsWheel)
-                    .await;
+                self.mouse.on_ball_is_wheel(false);
             }
             KbCustomEvent::Press(CustomEvent::IncreaseCpi) => {
                 if SENSOR_CMD_CHANNEL.is_full() {

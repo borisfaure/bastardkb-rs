@@ -2,25 +2,6 @@ use crate::hid::MouseReport;
 use crate::{device::is_host, hid::HID_MOUSE_CHANNEL};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 
-#[derive(Debug, defmt::Format)]
-pub enum MouseCommand {
-    PressRightClick = 1,
-    ReleaseRightClick = 2,
-    PressLeftClick = 3,
-    ReleaseLeftClick = 4,
-    PressWheelClick = 5,
-    ReleaseWheelClick = 6,
-    PressBallIsWheel = 7,
-    ReleaseBallIsWheel = 8,
-}
-
-/// Maximum number of commands in the channel
-pub const NB_CMD: usize = 64;
-
-/// Channel to send commands to the mouse handler
-pub static MOUSE_CMD_CHANNEL: Channel<CriticalSectionRawMutex, MouseCommand, NB_CMD> =
-    Channel::new();
-
 /// Mouse move event
 #[derive(Debug, defmt::Format)]
 pub struct MouseMove {
@@ -52,6 +33,9 @@ pub struct MouseHandler {
     dx: i16,
     /// Direction Y
     dy: i16,
+
+    /// Whether the state has changed
+    changed: bool,
 }
 
 /// Threshold to consider the movement as a wheel movement
@@ -76,41 +60,48 @@ impl MouseHandler {
             ball_is_wheel: false,
             dx: 0,
             dy: 0,
+            changed: false,
         }
     }
 
-    /// Handle a mouse command event
-    fn handle_command_event(&mut self, event: MouseCommand) {
-        match event {
-            MouseCommand::PressRightClick => self.right_click = true,
-            MouseCommand::ReleaseRightClick => self.right_click = false,
-            MouseCommand::PressLeftClick => self.left_click = true,
-            MouseCommand::ReleaseLeftClick => self.left_click = false,
-            MouseCommand::PressWheelClick => self.wheel_click = true,
-            MouseCommand::ReleaseWheelClick => self.wheel_click = false,
-            MouseCommand::PressBallIsWheel => self.ball_is_wheel = true,
-            MouseCommand::ReleaseBallIsWheel => self.ball_is_wheel = false,
-        }
+    /// On left click
+    pub fn on_left_click(&mut self, is_pressed: bool) {
+        self.left_click = is_pressed;
+        self.changed = true;
+    }
+
+    /// On right click
+    pub fn on_right_click(&mut self, is_pressed: bool) {
+        self.right_click = is_pressed;
+        self.changed = true;
+    }
+
+    /// On middle click
+    pub fn on_middle_click(&mut self, is_pressed: bool) {
+        self.wheel_click = is_pressed;
+        self.changed = true;
+    }
+
+    /// On Ball is wheel
+    pub fn on_ball_is_wheel(&mut self, is_pressed: bool) {
+        self.ball_is_wheel = is_pressed;
+        self.changed = true;
     }
 
     /// Handle a mouse movement event
     fn handle_move_event(&mut self, MouseMove { dx, dy }: MouseMove) {
         self.dx = dx;
         self.dy = dy;
+        self.changed = true;
     }
 
     /// Compute the state of the mouse. Called every 1ms
     pub async fn tick(&mut self) {
-        let mut changed = false;
-        while let Ok(event) = MOUSE_CMD_CHANNEL.try_receive() {
-            self.handle_command_event(event);
-            changed = true;
-        }
         while let Ok(event) = MOUSE_MOVE_CHANNEL.try_receive() {
             self.handle_move_event(event);
-            changed = true;
+            self.changed = true;
         }
-        if changed && is_host() {
+        if self.changed && is_host() {
             let hid_report = self.generate_hid_report();
             if HID_MOUSE_CHANNEL.is_full() {
                 defmt::error!("HID mouse channel is full");
