@@ -87,7 +87,7 @@ impl Core {
             ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
         }
 
-        process_custom_event(custom_event).await;
+        self.process_custom_event(custom_event).await;
         let new_kb_report = generate_hid_kb_report(&mut self.layout);
         if new_kb_report != self.kb_report {
             self.kb_report = new_kb_report;
@@ -95,6 +95,95 @@ impl Core {
                 defmt::error!("HID KB channel is full");
             }
             HID_KB_CHANNEL.send(new_kb_report).await;
+        }
+    }
+
+    /// Process a custom event from the layout
+    async fn process_custom_event(&mut self, event: KbCustomEvent<CustomEvent>) {
+        match event {
+            KbCustomEvent::Press(CustomEvent::MouseLeftClick) => {
+                if MOUSE_CMD_CHANNEL.is_full() {
+                    defmt::error!("Mouse channel is full");
+                }
+                MOUSE_CMD_CHANNEL.send(MouseCommand::PressLeftClick).await;
+            }
+            KbCustomEvent::Release(CustomEvent::MouseLeftClick) => {
+                if MOUSE_CMD_CHANNEL.is_full() {
+                    defmt::error!("Mouse channel is full");
+                }
+                MOUSE_CMD_CHANNEL.send(MouseCommand::ReleaseLeftClick).await;
+            }
+            KbCustomEvent::Press(CustomEvent::MouseRightClick) => {
+                if MOUSE_CMD_CHANNEL.is_full() {
+                    defmt::error!("Mouse channel is full");
+                }
+                MOUSE_CMD_CHANNEL.send(MouseCommand::PressRightClick).await;
+            }
+            KbCustomEvent::Release(CustomEvent::MouseRightClick) => {
+                if MOUSE_CMD_CHANNEL.is_full() {
+                    defmt::error!("Mouse channel is full");
+                }
+                MOUSE_CMD_CHANNEL
+                    .send(MouseCommand::ReleaseRightClick)
+                    .await;
+            }
+            KbCustomEvent::Press(CustomEvent::MouseWheelClick) => {
+                if MOUSE_CMD_CHANNEL.is_full() {
+                    defmt::error!("Mouse channel is full");
+                }
+                MOUSE_CMD_CHANNEL.send(MouseCommand::PressWheelClick).await;
+            }
+            KbCustomEvent::Release(CustomEvent::MouseWheelClick) => {
+                if MOUSE_CMD_CHANNEL.is_full() {
+                    defmt::error!("Mouse channel is full");
+                }
+                MOUSE_CMD_CHANNEL
+                    .send(MouseCommand::ReleaseWheelClick)
+                    .await;
+            }
+            KbCustomEvent::Press(CustomEvent::BallIsWheel) => {
+                if MOUSE_CMD_CHANNEL.is_full() {
+                    defmt::error!("Mouse channel is full");
+                }
+                MOUSE_CMD_CHANNEL.send(MouseCommand::PressBallIsWheel).await;
+            }
+            KbCustomEvent::Release(CustomEvent::BallIsWheel) => {
+                if MOUSE_CMD_CHANNEL.is_full() {
+                    defmt::error!("Mouse channel is full");
+                }
+                MOUSE_CMD_CHANNEL
+                    .send(MouseCommand::ReleaseBallIsWheel)
+                    .await;
+            }
+            KbCustomEvent::Press(CustomEvent::IncreaseCpi) => {
+                if SENSOR_CMD_CHANNEL.is_full() {
+                    defmt::error!("Sensor channel is full");
+                }
+                SENSOR_CMD_CHANNEL.send(SensorCommand::IncreaseCpi).await;
+            }
+            KbCustomEvent::Release(CustomEvent::IncreaseCpi) => {}
+            KbCustomEvent::Press(CustomEvent::DecreaseCpi) => {
+                if SENSOR_CMD_CHANNEL.is_full() {
+                    defmt::error!("Sensor channel is full");
+                }
+                SENSOR_CMD_CHANNEL.send(SensorCommand::DecreaseCpi).await;
+            }
+            KbCustomEvent::Release(CustomEvent::DecreaseCpi) => {}
+
+            KbCustomEvent::Press(CustomEvent::NextLedAnimation) => {
+                if ANIM_CHANNEL.is_full() {
+                    defmt::error!("Anim channel is full");
+                }
+                ANIM_CHANNEL.send(AnimCommand::Next).await;
+            }
+            KbCustomEvent::Release(CustomEvent::NextLedAnimation) => {}
+
+            KbCustomEvent::Press(CustomEvent::ResetToUsbMassStorage) => {
+                embassy_rp::rom_data::reset_to_usb_boot(0, 0);
+            }
+            KbCustomEvent::Release(CustomEvent::ResetToUsbMassStorage) => {}
+
+            KbCustomEvent::NoEvent => (),
         }
     }
 
@@ -139,93 +228,4 @@ fn generate_hid_kb_report(layout: &mut KBLayout) -> KeyboardReport {
         }
     }
     report
-}
-
-/// Process a custom event from the layout
-async fn process_custom_event(event: KbCustomEvent<CustomEvent>) {
-    match event {
-        KbCustomEvent::Press(CustomEvent::MouseLeftClick) => {
-            if MOUSE_CMD_CHANNEL.is_full() {
-                defmt::error!("Mouse channel is full");
-            }
-            MOUSE_CMD_CHANNEL.send(MouseCommand::PressLeftClick).await;
-        }
-        KbCustomEvent::Release(CustomEvent::MouseLeftClick) => {
-            if MOUSE_CMD_CHANNEL.is_full() {
-                defmt::error!("Mouse channel is full");
-            }
-            MOUSE_CMD_CHANNEL.send(MouseCommand::ReleaseLeftClick).await;
-        }
-        KbCustomEvent::Press(CustomEvent::MouseRightClick) => {
-            if MOUSE_CMD_CHANNEL.is_full() {
-                defmt::error!("Mouse channel is full");
-            }
-            MOUSE_CMD_CHANNEL.send(MouseCommand::PressRightClick).await;
-        }
-        KbCustomEvent::Release(CustomEvent::MouseRightClick) => {
-            if MOUSE_CMD_CHANNEL.is_full() {
-                defmt::error!("Mouse channel is full");
-            }
-            MOUSE_CMD_CHANNEL
-                .send(MouseCommand::ReleaseRightClick)
-                .await;
-        }
-        KbCustomEvent::Press(CustomEvent::MouseWheelClick) => {
-            if MOUSE_CMD_CHANNEL.is_full() {
-                defmt::error!("Mouse channel is full");
-            }
-            MOUSE_CMD_CHANNEL.send(MouseCommand::PressWheelClick).await;
-        }
-        KbCustomEvent::Release(CustomEvent::MouseWheelClick) => {
-            if MOUSE_CMD_CHANNEL.is_full() {
-                defmt::error!("Mouse channel is full");
-            }
-            MOUSE_CMD_CHANNEL
-                .send(MouseCommand::ReleaseWheelClick)
-                .await;
-        }
-        KbCustomEvent::Press(CustomEvent::BallIsWheel) => {
-            if MOUSE_CMD_CHANNEL.is_full() {
-                defmt::error!("Mouse channel is full");
-            }
-            MOUSE_CMD_CHANNEL.send(MouseCommand::PressBallIsWheel).await;
-        }
-        KbCustomEvent::Release(CustomEvent::BallIsWheel) => {
-            if MOUSE_CMD_CHANNEL.is_full() {
-                defmt::error!("Mouse channel is full");
-            }
-            MOUSE_CMD_CHANNEL
-                .send(MouseCommand::ReleaseBallIsWheel)
-                .await;
-        }
-        KbCustomEvent::Press(CustomEvent::IncreaseCpi) => {
-            if SENSOR_CMD_CHANNEL.is_full() {
-                defmt::error!("Sensor channel is full");
-            }
-            SENSOR_CMD_CHANNEL.send(SensorCommand::IncreaseCpi).await;
-        }
-        KbCustomEvent::Release(CustomEvent::IncreaseCpi) => {}
-        KbCustomEvent::Press(CustomEvent::DecreaseCpi) => {
-            if SENSOR_CMD_CHANNEL.is_full() {
-                defmt::error!("Sensor channel is full");
-            }
-            SENSOR_CMD_CHANNEL.send(SensorCommand::DecreaseCpi).await;
-        }
-        KbCustomEvent::Release(CustomEvent::DecreaseCpi) => {}
-
-        KbCustomEvent::Press(CustomEvent::NextLedAnimation) => {
-            if ANIM_CHANNEL.is_full() {
-                defmt::error!("Anim channel is full");
-            }
-            ANIM_CHANNEL.send(AnimCommand::Next).await;
-        }
-        KbCustomEvent::Release(CustomEvent::NextLedAnimation) => {}
-
-        KbCustomEvent::Press(CustomEvent::ResetToUsbMassStorage) => {
-            embassy_rp::rom_data::reset_to_usb_boot(0, 0);
-        }
-        KbCustomEvent::Release(CustomEvent::ResetToUsbMassStorage) => {}
-
-        KbCustomEvent::NoEvent => (),
-    }
 }
