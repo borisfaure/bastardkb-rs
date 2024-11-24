@@ -318,6 +318,9 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
                     let burst_res = self.burst_get().await;
                     if let Ok(burst) = burst_res {
                         if self.last_dx != burst.dx || self.last_dy != burst.dy {
+                            if MOUSE_MOVE_CHANNEL.is_full() {
+                                defmt::error!("Mouse move channel is full");
+                            }
                             MOUSE_MOVE_CHANNEL
                                 .send(MouseMove {
                                     dx: burst.dx,

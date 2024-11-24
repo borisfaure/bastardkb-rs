@@ -216,12 +216,18 @@ pub async fn full_duplex_comm<'a>(
                         );
                         Timer::after_millis(10).await;
                         tx_buffer.send(Event::Error(next_rx_sid)).await;
+                        if ANIM_CHANNEL.is_full() {
+                            defmt::error!("Anim channel is full");
+                        }
                         ANIM_CHANNEL.send(AnimCommand::Error).await;
                         rx_on_error = true;
                     } else {
                         defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
                         next_rx_sid = sid.wrapping_add(1);
                         if rx_on_error && !event.is_error() {
+                            if ANIM_CHANNEL.is_full() {
+                                defmt::error!("Anim channel is full");
+                            }
                             ANIM_CHANNEL.send(AnimCommand::Fixed).await;
                             rx_on_error = false;
                         }
@@ -238,15 +244,27 @@ pub async fn full_duplex_comm<'a>(
                                 tx_buffer.replay_from(r).await;
                             }
                             Event::Press(i, j) => {
+                                if LAYOUT_CHANNEL.is_full() {
+                                    defmt::error!("Layout channel is full");
+                                }
                                 LAYOUT_CHANNEL.send(KBEvent::Press(i, j)).await;
                             }
                             Event::Release(i, j) => {
+                                if LAYOUT_CHANNEL.is_full() {
+                                    defmt::error!("Layout channel is full");
+                                }
                                 LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
                             }
                             Event::RgbAnim(anim) => {
+                                if ANIM_CHANNEL.is_full() {
+                                    defmt::error!("Anim channel is full");
+                                }
                                 ANIM_CHANNEL.send(AnimCommand::Set(anim)).await;
                             }
                             Event::RgbAnimChangeLayer(layer) => {
+                                if ANIM_CHANNEL.is_full() {
+                                    defmt::error!("Anim channel is full");
+                                }
                                 ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
                             }
                         }

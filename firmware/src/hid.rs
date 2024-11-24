@@ -225,6 +225,9 @@ impl RequestHandler for HidRequestHandler<'_> {
 async fn caps_lock_change() {
     // send a key press and release event for the CapsLock key so that
     // the keymap can do something with it, like changing the default layer
+    if LAYOUT_CHANNEL.is_full() {
+        defmt::error!("Layout channel is full");
+    }
     LAYOUT_CHANNEL
         .send(keyberon::layout::Event::Press(3, 4))
         .await;
@@ -236,6 +239,9 @@ async fn caps_lock_change() {
 async fn num_lock_change() {
     // send a key press and release event for the NumLock key so that
     // the keymap can do something with it, like changing the default layer
+    if LAYOUT_CHANNEL.is_full() {
+        defmt::error!("Layout channel is full");
+    }
     LAYOUT_CHANNEL
         .send(keyberon::layout::Event::Press(3, 1))
         .await;

@@ -115,6 +115,9 @@ impl MouseHandler {
             }
             if is_host() {
                 let hid_report = self.generate_hid_report();
+                if HID_MOUSE_CHANNEL.is_full() {
+                    defmt::error!("HID mouse channel is full");
+                }
                 HID_MOUSE_CHANNEL.send(hid_report).await;
             }
         }

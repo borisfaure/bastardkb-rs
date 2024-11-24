@@ -77,7 +77,13 @@ impl Core {
             defmt::info!("Layer: {}", new_layer);
             self.current_layer = new_layer;
             let layer = new_layer as u8;
+            if SIDE_CHANNEL.is_full() {
+                defmt::error!("Side channel is full");
+            }
             SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
+            if ANIM_CHANNEL.is_full() {
+                defmt::error!("Anim channel is full");
+            }
             ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
         }
 
@@ -85,6 +91,9 @@ impl Core {
         let new_kb_report = generate_hid_kb_report(&mut self.layout);
         if new_kb_report != self.kb_report {
             self.kb_report = new_kb_report;
+            if HID_KB_CHANNEL.is_full() {
+                defmt::error!("HID KB channel is full");
+            }
             HID_KB_CHANNEL.send(new_kb_report).await;
         }
     }
@@ -136,45 +145,78 @@ fn generate_hid_kb_report(layout: &mut KBLayout) -> KeyboardReport {
 async fn process_custom_event(event: KbCustomEvent<CustomEvent>) {
     match event {
         KbCustomEvent::Press(CustomEvent::MouseLeftClick) => {
+            if MOUSE_CMD_CHANNEL.is_full() {
+                defmt::error!("Mouse channel is full");
+            }
             MOUSE_CMD_CHANNEL.send(MouseCommand::PressLeftClick).await;
         }
         KbCustomEvent::Release(CustomEvent::MouseLeftClick) => {
+            if MOUSE_CMD_CHANNEL.is_full() {
+                defmt::error!("Mouse channel is full");
+            }
             MOUSE_CMD_CHANNEL.send(MouseCommand::ReleaseLeftClick).await;
         }
         KbCustomEvent::Press(CustomEvent::MouseRightClick) => {
+            if MOUSE_CMD_CHANNEL.is_full() {
+                defmt::error!("Mouse channel is full");
+            }
             MOUSE_CMD_CHANNEL.send(MouseCommand::PressRightClick).await;
         }
         KbCustomEvent::Release(CustomEvent::MouseRightClick) => {
+            if MOUSE_CMD_CHANNEL.is_full() {
+                defmt::error!("Mouse channel is full");
+            }
             MOUSE_CMD_CHANNEL
                 .send(MouseCommand::ReleaseRightClick)
                 .await;
         }
         KbCustomEvent::Press(CustomEvent::MouseWheelClick) => {
+            if MOUSE_CMD_CHANNEL.is_full() {
+                defmt::error!("Mouse channel is full");
+            }
             MOUSE_CMD_CHANNEL.send(MouseCommand::PressWheelClick).await;
         }
         KbCustomEvent::Release(CustomEvent::MouseWheelClick) => {
+            if MOUSE_CMD_CHANNEL.is_full() {
+                defmt::error!("Mouse channel is full");
+            }
             MOUSE_CMD_CHANNEL
                 .send(MouseCommand::ReleaseWheelClick)
                 .await;
         }
         KbCustomEvent::Press(CustomEvent::BallIsWheel) => {
+            if MOUSE_CMD_CHANNEL.is_full() {
+                defmt::error!("Mouse channel is full");
+            }
             MOUSE_CMD_CHANNEL.send(MouseCommand::PressBallIsWheel).await;
         }
         KbCustomEvent::Release(CustomEvent::BallIsWheel) => {
+            if MOUSE_CMD_CHANNEL.is_full() {
+                defmt::error!("Mouse channel is full");
+            }
             MOUSE_CMD_CHANNEL
                 .send(MouseCommand::ReleaseBallIsWheel)
                 .await;
         }
         KbCustomEvent::Press(CustomEvent::IncreaseCpi) => {
+            if SENSOR_CMD_CHANNEL.is_full() {
+                defmt::error!("Sensor channel is full");
+            }
             SENSOR_CMD_CHANNEL.send(SensorCommand::IncreaseCpi).await;
         }
         KbCustomEvent::Release(CustomEvent::IncreaseCpi) => {}
         KbCustomEvent::Press(CustomEvent::DecreaseCpi) => {
+            if SENSOR_CMD_CHANNEL.is_full() {
+                defmt::error!("Sensor channel is full");
+            }
             SENSOR_CMD_CHANNEL.send(SensorCommand::DecreaseCpi).await;
         }
         KbCustomEvent::Release(CustomEvent::DecreaseCpi) => {}
 
         KbCustomEvent::Press(CustomEvent::NextLedAnimation) => {
+            if ANIM_CHANNEL.is_full() {
+                defmt::error!("Anim channel is full");
+            }
             ANIM_CHANNEL.send(AnimCommand::Next).await;
         }
         KbCustomEvent::Release(CustomEvent::NextLedAnimation) => {}

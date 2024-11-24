@@ -72,16 +72,34 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
         for event in debouncer.events(matrix.scan()).map(transform) {
             defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
             if is_host {
+                if LAYOUT_CHANNEL.is_full() {
+                    defmt::error!("Layout channel is full");
+                }
                 LAYOUT_CHANNEL.send(event).await;
+                if RGB_CHANNEL.is_full() {
+                    defmt::error!("RGB channel is full");
+                }
                 RGB_CHANNEL.send(event).await;
             } else {
                 match event {
                     KBEvent::Press(i, j) => {
+                        if SIDE_CHANNEL.is_full() {
+                            defmt::error!("Side channel is full");
+                        }
                         SIDE_CHANNEL.send(Event::Press(i, j)).await;
+                        if RGB_CHANNEL.is_full() {
+                            defmt::error!("RGB channel is full");
+                        }
                         RGB_CHANNEL.send(event).await;
                     }
                     KBEvent::Release(i, j) => {
+                        if SIDE_CHANNEL.is_full() {
+                            defmt::error!("Side channel is full");
+                        }
                         SIDE_CHANNEL.send(Event::Release(i, j)).await;
+                        if RGB_CHANNEL.is_full() {
+                            defmt::error!("RGB channel is full");
+                        }
                         RGB_CHANNEL.send(event).await;
                     }
                 }

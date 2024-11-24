@@ -139,6 +139,9 @@ pub async fn run(
             Either3::Second(cmd) => match cmd {
                 AnimCommand::Next => {
                     let new_anim = anim.next_animation();
+                    if SIDE_CHANNEL.is_full() {
+                        defmt::error!("Side channel is full");
+                    }
                     SIDE_CHANNEL.send(Event::RgbAnim(new_anim)).await;
                     defmt::info!("New animation: {:?}", defmt::Debug2Format(&new_anim));
                 }
