@@ -1,5 +1,5 @@
+use crate::device::is_host;
 use crate::hid::MouseReport;
-use crate::{device::is_host, hid::HID_MOUSE_CHANNEL};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 
 /// Mouse move event
@@ -96,17 +96,17 @@ impl MouseHandler {
     }
 
     /// Compute the state of the mouse. Called every 1ms
-    pub async fn tick(&mut self) {
-        while let Ok(event) = MOUSE_MOVE_CHANNEL.try_receive() {
+    pub async fn tick(&mut self) -> Option<MouseReport> {
+        if let Ok(event) = MOUSE_MOVE_CHANNEL.try_receive() {
             self.handle_move_event(event);
             self.changed = true;
         }
         if self.changed && is_host() {
+            self.changed = false;
             let hid_report = self.generate_hid_report();
-            if HID_MOUSE_CHANNEL.is_full() {
-                defmt::error!("HID mouse channel is full");
-            }
-            HID_MOUSE_CHANNEL.send(hid_report).await;
+            Some(hid_report)
+        } else {
+            None
         }
     }
 

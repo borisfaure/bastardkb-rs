@@ -1,9 +1,7 @@
 #![no_std]
 #![no_main]
 
-use crate::hid::{
-    hid_kb_writer_handler, hid_mouse_writer, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR,
-};
+use crate::hid::{hid_kb_writer_handler, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR};
 use crate::keys::{matrix_scanner, Matrix};
 use crate::pmw3360::Pmw3360;
 use embassy_executor::Spawner;
@@ -142,7 +140,7 @@ async fn main(spawner: Spawner) {
         poll_ms: 60,
         max_packet_size: 8,
     };
-    let hidkb = HidReaderWriter::<_, 64, 64>::new(&mut builder, &mut state_kb, hidkb_config);
+    let hidkb = HidReaderWriter::<_, 8, 8>::new(&mut builder, &mut state_kb, hidkb_config);
 
     let hidm_config = HidConfig {
         report_descriptor: MOUSE_REPORT_DESCRIPTOR,
@@ -150,7 +148,7 @@ async fn main(spawner: Spawner) {
         poll_ms: 10,
         max_packet_size: 7,
     };
-    let hid_mouse = HidWriter::<_, 64>::new(&mut builder, &mut state_mouse, hidm_config);
+    let hid_mouse = HidWriter::<_, 7>::new(&mut builder, &mut state_mouse, hidm_config);
 
     let mut request_handler = hid::HidRequestHandler::new(&spawner);
     let (hid_kb_reader, hid_kb_writer) = hidkb.split();
@@ -158,7 +156,6 @@ async fn main(spawner: Spawner) {
         hid_kb_reader.run(false, &mut request_handler).await;
     };
     let hid_kb_writer_fut = hid_kb_writer_handler(hid_kb_writer);
-    let hid_mouse_writer_fut = hid_mouse_writer(hid_mouse);
 
     // Build the builder.
     let mut usb = builder.build();
@@ -197,7 +194,7 @@ async fn main(spawner: Spawner) {
     );
     let pio0 = Pio::new(p.PIO0, PioIrq0);
     let rgb_leds_fut = rgb_leds::run(pio0.common, pio0.sm0, p.DMA_CH0, p.PIN_0, is_right);
-    let mut core = Core::new();
+    let mut core = Core::new(hid_mouse);
     let layout_fut = core.run();
     let matrix_fut = matrix_scanner(matrix, is_right);
 
@@ -227,7 +224,7 @@ async fn main(spawner: Spawner) {
         future::join3(
             future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
             future::join3(matrix_fut, layout_fut, ball_sensor_fut),
-            future::join3(hid_kb_reader_fut, hid_kb_writer_fut, hid_mouse_writer_fut),
+            future::join(hid_kb_reader_fut, hid_kb_writer_fut),
         )
         .await;
     } else {
@@ -235,7 +232,7 @@ async fn main(spawner: Spawner) {
         future::join3(
             future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
             future::join(matrix_fut, layout_fut),
-            future::join3(hid_kb_reader_fut, hid_kb_writer_fut, hid_mouse_writer_fut),
+            future::join(hid_kb_reader_fut, hid_kb_writer_fut),
         )
         .await;
     }

@@ -4,8 +4,11 @@ use crate::pmw3360::{SensorCommand, SENSOR_CMD_CHANNEL};
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use crate::side::SIDE_CHANNEL;
 use embassy_futures::select::{select, Either};
+use embassy_rp::peripherals::USB;
+use embassy_rp::usb::Driver;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
+use embassy_usb::class::hid::HidWriter;
 use keyberon::key_code::KeyCode;
 use keyberon::layout::{CustomEvent as KbCustomEvent, Event as KBEvent, Layout};
 use utils::serde::Event;
@@ -51,31 +54,36 @@ pub enum CustomEvent {
     ResetToUsbMassStorage,
 }
 
-pub struct Core {
+pub struct Core<'a> {
     layout: KBLayout,
     current_layer: usize,
     kb_report: KeyboardReport,
-    tick: u32,
     mouse: MouseHandler,
+    hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>,
 }
 
-impl Core {
-    pub fn new() -> Self {
+impl<'a> Core<'a> {
+    pub fn new(hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>) -> Self {
         Self {
             layout: Layout::new(&LAYERS),
             current_layer: 0,
             kb_report: KeyboardReport::default(),
-            tick: 0,
             mouse: MouseHandler::new(),
+            hid_mouse_writer,
         }
     }
 
     async fn tick(&mut self) {
-        self.tick += 1;
-        if self.tick % 2000 == 0 {
-            defmt::info!("Tick: {} (every 2s?)", self.tick);
+        // Process all mouse events first since they are time sensitive
+        while let Some(mouse_report) = self.mouse.tick().await {
+            let raw = mouse_report.serialize();
+            if let Err(e) = self.hid_mouse_writer.write(&raw).await {
+                defmt::error!("Failed to send mouse report: {:?}", e);
+            }
         }
-        // Process all events in the channel if any
+
+        // Process all events in the layout channel if any
+        // This is where the keymap is processed
         while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
             self.layout.event(event);
         }
@@ -90,7 +98,6 @@ impl Core {
             }
             HID_KB_CHANNEL.send(new_kb_report).await;
         }
-        self.mouse.tick().await;
         if new_layer != self.current_layer {
             defmt::info!("Layer: {}", new_layer);
             self.current_layer = new_layer;
