@@ -34,7 +34,7 @@ pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEv
         [ Q  W  E  R  T      Y  U  I  O  P ],
         [ A  S  D  F  G      H  J  K  L  ; ],
         [ Z  X  C  V  B      N  M  ,  .  / ],
-        [ 3  n  1  2  n      n  n  5  n  4 ],
+        [ n  n  1  2  3      4  5  n  n  n ],
     } { // Unreachable
         [ n  n  n  n  n      n  n  n  n  n ],
         [ n  n  n  n  n      n  n  n  n  n ],

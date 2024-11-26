@@ -226,10 +226,10 @@ async fn caps_lock_change() {
         defmt::error!("Layout channel is full");
     }
     LAYOUT_CHANNEL
-        .send(keyberon::layout::Event::Press(3, 4))
+        .send(keyberon::layout::Event::Press(3, 0))
         .await;
     LAYOUT_CHANNEL
-        .send(keyberon::layout::Event::Release(3, 4))
+        .send(keyberon::layout::Event::Release(3, 0))
         .await;
 }
 #[embassy_executor::task]

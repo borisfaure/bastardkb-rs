@@ -167,14 +167,14 @@ const MATRIX_LED_RIGHT: [[usize; COLS]; ROWS] = [
     [2, 3, 8, 9, 12],
     [1, 4, 7, 10, 13],
     [0, 5, 6, 11, 14],
-    [15, 255, 16, 255, 255],
+    [255, 255, 255, 15, 16],
 ];
 /// Index of leds on the left side
 const MATRIX_LED_LEFT: [[usize; COLS]; ROWS] = [
     [2, 3, 8, 9, 12],
     [1, 4, 7, 10, 13],
     [0, 5, 6, 11, 14],
-    [17, 255, 15, 16, 255],
+    [15, 16, 17, 255, 255],
 ];
 
 ///>>> from math import sin, pi; [int(sin(x/128.0*pi)**4*255) for x in range(128)]

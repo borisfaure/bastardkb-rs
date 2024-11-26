@@ -63,9 +63,34 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
 
     loop {
         let transform = if is_right {
-            |e: KBEvent| e.transform(|i, j| (i, 9 - j))
+            |e: KBEvent| {
+                e.transform(|i, j| {
+                    if i == 3 {
+                        match j {
+                            0 => (3, 5),
+                            2 => (3, 6),
+                            _ => panic!("Invalid key {:?}", (i, j)),
+                        }
+                    } else {
+                        (i, 9 - j)
+                    }
+                })
+            }
         } else {
-            |e| e
+            |e: KBEvent| {
+                e.transform(|i, j| {
+                    if i == 3 {
+                        match j {
+                            0 => (3, 4),
+                            2 => (3, 2),
+                            3 => (3, 3),
+                            _ => panic!("Invalid key {:?}", (i, j)),
+                        }
+                    } else {
+                        (i, j)
+                    }
+                })
+            }
         };
         let is_host = is_host();
 
