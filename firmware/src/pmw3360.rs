@@ -22,7 +22,7 @@ const DEFAULT_CPI: u16 = 800;
 const DEFAULT_ANGLE_TUNE: u8 = 32;
 
 /// Sensor refresh rate, in ms
-const REFRESH_RATE_MS: u64 = 1;
+const REFRESH_RATE_MS: u64 = 10;
 
 #[derive(Debug, defmt::Format)]
 pub enum SensorCommand {
