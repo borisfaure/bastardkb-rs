@@ -90,32 +90,34 @@ impl RGB8 {
 }
 
 /// Indexed colors
-const INDEXED_COLORS: [RGB8; 10] = [
+const INDEXED_COLORS: [RGB8; 11] = [
     // No color
     RGB8::default(),
-    // orange #fa6800, RAISE
+    // 1/ orange #fa6800, RAISE
     RGB8::new(250, 104, 0),
-    // green #a4c400, LOWER
+    // 2/ green #a4c400, LOWER
     RGB8::new(109, 135, 100),
-    // purple #99006e, MISC
+    // 3/ purple #99006e, MISC
     RGB8::new(153, 0, 110),
-    // blue #7ea6e0, NUMBERS
+    // 4/ blue #7ea6e0, NUMBERS
     RGB8::new(126, 166, 224),
-    // red #b85450, TMUX
+    // 5/ red #b85450, TMUX
     RGB8::new(184, 84, 80),
-    // gray #666666, GAMING
+    // 6/ gray #666666, GAMING
     RGB8::new(102, 102, 102),
-    // beige #e7e7e7, CAPS
+    // 7/ beige #e7e7e7, CAPS
     RGB8::new(231, 231, 231),
-    // yellow #f3e5ab, QWERTY
+    // 9/ yellow #f3e5ab, QWERTY
     RGB8::new(243, 229, 171),
-    // red #ff0000
-    RGB8::new(255, 0, 0),
+    // 10/ Dark red #7f0000
+    RGB8::new(127, 0, 0),
+    // 11/ orange #dd571c , ERROR
+    RGB8::new(221, 87, 28),
 ];
 /// Default color: red
-const DEFAULT_COLOR_INDEX: u8 = 9;
-/// Error color: red
-pub const ERROR_COLOR_INDEX: u8 = 9;
+const DEFAULT_COLOR_INDEX: u8 = 10;
+/// Error color: orange
+pub const ERROR_COLOR_INDEX: u8 = 11;
 
 impl From<u32> for RGB8 {
     fn from(i: u32) -> Self {
