@@ -54,15 +54,22 @@ pub enum CustomEvent {
     ResetToUsbMassStorage,
 }
 
+/// Core of the keyboard & mouse firmware
 pub struct Core<'a> {
+    /// Keyboard layout
     layout: KBLayout,
+    /// Current layer
     current_layer: usize,
+    /// Keyboard HID report
     kb_report: KeyboardReport,
+    /// Mouse handler
     mouse: MouseHandler,
+    /// HID mouse writer
     hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>,
 }
 
 impl<'a> Core<'a> {
+    /// Create a new core
     pub fn new(hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>) -> Self {
         Self {
             layout: Layout::new(&LAYERS),
@@ -73,6 +80,25 @@ impl<'a> Core<'a> {
         }
     }
 
+    /// Set the color layer of the RGB LEDs
+    async fn set_color_layer(&mut self, layer: u8) {
+        if SIDE_CHANNEL.is_full() {
+            defmt::error!("Side channel is full");
+        }
+        SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
+        if ANIM_CHANNEL.is_full() {
+            defmt::error!("Anim channel is full");
+        }
+        ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
+    }
+
+    /// On key event
+    fn on_key_event(&mut self, event: KBEvent) {
+        defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
+        self.layout.event(event);
+    }
+
+    /// Process the state of the keyboard and mouse
     async fn tick(&mut self) {
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
@@ -85,7 +111,7 @@ impl<'a> Core<'a> {
         // Process all events in the layout channel if any
         // This is where the keymap is processed
         while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
-            self.layout.event(event);
+            self.on_key_event(event);
         }
         let custom_event = self.layout.tick();
         let new_layer = self.layout.current_layer();
@@ -101,15 +127,7 @@ impl<'a> Core<'a> {
         if new_layer != self.current_layer {
             defmt::info!("Layer: {}", new_layer);
             self.current_layer = new_layer;
-            let layer = new_layer as u8;
-            if SIDE_CHANNEL.is_full() {
-                defmt::error!("Side channel is full");
-            }
-            SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
-            if ANIM_CHANNEL.is_full() {
-                defmt::error!("Anim channel is full");
-            }
-            ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
+            self.set_color_layer(new_layer as u8).await;
         }
     }
 
@@ -182,7 +200,7 @@ impl<'a> Core<'a> {
                     self.tick().await;
                 }
                 Either::Second(event) => {
-                    self.layout.event(event);
+                    self.on_key_event(event);
                 }
             };
         }
