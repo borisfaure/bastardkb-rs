@@ -332,7 +332,7 @@ const RST: Action<CustomEvent> = Action::Custom(ResetToUsbMassStorage);
 
 #[rustfmt::skip]
 /// Layout
-pub static LAYERS: keyberon::layout::Layers<10, 4, 9, CustomEvent> = keyberon::layout::layout! {
+pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEvent> = keyberon::layout::layout! {
    { /* 0: Coleman-DH */
 [  Q         {HT_W_W}   F          P         {HT_4_B}    {HT_4_K}   L         U  {HT_W_Y}     ;        ],
 [ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E  {HT_4_I}    {HT_C_O}  ],
