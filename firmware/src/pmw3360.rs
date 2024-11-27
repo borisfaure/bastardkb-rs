@@ -166,7 +166,7 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         // Timer::after_micros(1).await;
 
         //combine the register values
-        let data = BurstData {
+        let mut data = BurstData {
             motion: (buf[0] & 0x80) != 0,
             dy: (buf[3] as i16) << 8 | (buf[2] as i16),
             dx: (buf[5] as i16) << 8 | (buf[4] as i16),
@@ -174,6 +174,22 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         if buf[0] & 0b111 != 0 {
             defmt::error!("Motion burst error");
             self.in_burst = false;
+        }
+        // if the motion bit is not set, the dx and dy values are not valid
+        if !data.motion {
+            data.dx = 0;
+            data.dy = 0;
+        }
+        // avoid small glitches
+        if data.dx == 1 || data.dx == -1 {
+            data.dx = 0;
+        }
+        if data.dy == 1 || data.dy == -1 {
+            data.dy = 0;
+        }
+        // if the dx or dy values are 0, the sensor is not moving
+        if data.dx == 0 && data.dy == 0 {
+            data.motion = false;
         }
 
         Ok(data)
