@@ -135,6 +135,8 @@ const INDEXED_COLORS: [RGB8; 11] = [
 ];
 /// Default color: dark red
 const DEFAULT_COLOR_INDEX: u8 = 9;
+/// Mouse color: dark red
+pub const MOUSE_COLOR_INDEX: u8 = 9;
 /// Error color: orange
 pub const ERROR_COLOR_INDEX: u8 = 10;
 

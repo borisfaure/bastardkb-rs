@@ -12,6 +12,7 @@ use embassy_time::{Duration, Ticker};
 use embassy_usb::class::hid::HidWriter;
 use keyberon::key_code::KeyCode;
 use keyberon::layout::{CustomEvent as KbCustomEvent, Event as KBEvent, Layout};
+use utils::rgb_anims::MOUSE_COLOR_INDEX;
 use utils::serde::Event;
 
 /// Basic layout for the keyboard
@@ -63,6 +64,19 @@ pub enum CustomEvent {
     WheelDown,
 }
 
+/// Timeout for the automouse feature: when the mouse is not used for this
+/// amount of time, it will be considered inactive.
+const AUTO_MOUSE_TIMEOUT: usize = 1000;
+
+/// Check if the key event is a left click
+fn event_is_left_click(i: u8, j: u8) -> bool {
+    i == 3 && j == 5
+}
+/// Check if the key event is a right click
+fn event_is_right_click(i: u8, j: u8) -> bool {
+    i == 3 && j == 6
+}
+
 /// Core keyboard/mouse handler
 pub struct Core<'a> {
     /// Keyboard layout
@@ -75,6 +89,15 @@ pub struct Core<'a> {
     mouse: MouseHandler,
     /// HID mouse writer
     hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>,
+    /// Timeout for the automouse feature. When this is non-zero, the mouse
+    /// will be considered active. Goes down to 0 every tick.
+    auto_mouse_timeout: usize,
+    /// Need to filter next left click release
+    filter_left_button_release: bool,
+    /// Need to filter next right click release
+    filter_right_button_release: bool,
+    /// Current color layer
+    color_layer: u8,
 }
 
 impl<'a> Core<'a> {
@@ -86,25 +109,78 @@ impl<'a> Core<'a> {
             kb_report: KeyboardReport::default(),
             mouse: MouseHandler::new(),
             hid_mouse_writer,
+            auto_mouse_timeout: 0,
+            filter_left_button_release: false,
+            filter_right_button_release: false,
+            color_layer: 0,
         }
     }
 
     /// Set the color layer of the RGB LEDs
     async fn set_color_layer(&mut self, layer: u8) {
-        if SIDE_CHANNEL.is_full() {
-            defmt::error!("Side channel is full");
+        if self.color_layer != layer {
+            defmt::info!("Setting color layer to {}", layer);
+            self.color_layer = layer;
+            if SIDE_CHANNEL.is_full() {
+                defmt::error!("Side channel is full");
+            }
+            SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
+            if ANIM_CHANNEL.is_full() {
+                defmt::error!("Anim channel is full");
+            }
+            ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
         }
-        SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
-        if ANIM_CHANNEL.is_full() {
-            defmt::error!("Anim channel is full");
-        }
-        ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
     }
 
-    /// On key event
-    fn on_key_event(&mut self, event: KBEvent) {
-        //defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
-        self.layout.event(event);
+    /// (Re)Set mouse active timeout
+    /// Also set the leds to the mouse active color
+    async fn on_mouse_active(&mut self) {
+        self.auto_mouse_timeout = AUTO_MOUSE_TIMEOUT;
+        self.set_color_layer(MOUSE_COLOR_INDEX).await;
+    }
+
+    /// When the mouse becomes inactive, reset the leds to the current layer
+    /// color
+    async fn on_mouse_inactive(&mut self) {
+        defmt::info!("Mouse inactive");
+        self.set_color_layer(self.current_layer as u8).await;
+    }
+
+    /// Process a key event
+    async fn on_key_event(&mut self, event: KBEvent) {
+        let (i, j) = event.coord();
+        let is_press = event.is_press();
+        defmt::info!(
+            "Key event: {:?} {:?} auto_mouse_timeout: {}, filter_left_button_release: {}, filter_right_button_release: {}",
+            is_press,
+            (i, j),
+            self.auto_mouse_timeout,
+            self.filter_left_button_release,
+            self.filter_right_button_release
+        );
+        if self.auto_mouse_timeout > 0 {
+            self.auto_mouse_timeout -= 1;
+            if event_is_left_click(i, j) {
+                self.mouse.on_left_click(is_press);
+                self.filter_left_button_release = is_press;
+                self.on_mouse_active().await;
+            } else if event_is_right_click(i, j) {
+                self.mouse.on_right_click(is_press);
+                self.filter_right_button_release = is_press;
+                self.on_mouse_active().await;
+            } else {
+                // Not a mouse event, process it as a keyboard event
+                // and consider the mouse as inactive
+                self.auto_mouse_timeout = 0;
+                self.layout.event(event);
+            }
+        } else if self.filter_left_button_release && !is_press && event_is_left_click(i, j) {
+            self.filter_left_button_release = false;
+        } else if self.filter_right_button_release && !is_press && event_is_right_click(i, j) {
+            self.filter_right_button_release = false;
+        } else {
+            self.layout.event(event);
+        }
     }
 
     /// Process the state of the keyboard and mouse
@@ -115,12 +191,19 @@ impl<'a> Core<'a> {
             if let Err(e) = self.hid_mouse_writer.write(&raw).await {
                 defmt::error!("Failed to send mouse report: {:?}", e);
             }
+            self.on_mouse_active().await;
+        }
+        if self.auto_mouse_timeout > 0 {
+            self.auto_mouse_timeout -= 1;
+            if self.auto_mouse_timeout == 0 {
+                self.on_mouse_inactive().await;
+            }
         }
 
         // Process all events in the layout channel if any
         // This is where the keymap is processed
         while let Ok(event) = LAYOUT_CHANNEL.try_receive() {
-            self.on_key_event(event);
+            self.on_key_event(event).await;
         }
         let custom_event = self.layout.tick();
         let new_layer = self.layout.current_layer();
@@ -229,7 +312,7 @@ pub async fn run(mut core: Core<'static>) {
                 core.tick().await;
             }
             Either::Second(event) => {
-                core.on_key_event(event);
+                core.on_key_event(event).await;
             }
         };
     }
