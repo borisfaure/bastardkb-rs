@@ -54,7 +54,10 @@ pub enum CustomEvent {
     ResetToUsbMassStorage,
 }
 
-/// Core of the keyboard & mouse firmware
+/// Debug tick counter: every 5s
+const TICK_DEBUG: usize = 5000;
+
+/// Core keyboard/mouse handler
 pub struct Core<'a> {
     /// Keyboard layout
     layout: KBLayout,
@@ -66,6 +69,8 @@ pub struct Core<'a> {
     mouse: MouseHandler,
     /// HID mouse writer
     hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>,
+    /// Tick counter
+    tick: usize,
 }
 
 impl<'a> Core<'a> {
@@ -77,6 +82,7 @@ impl<'a> Core<'a> {
             kb_report: KeyboardReport::default(),
             mouse: MouseHandler::new(),
             hid_mouse_writer,
+            tick: TICK_DEBUG,
         }
     }
 
@@ -100,6 +106,14 @@ impl<'a> Core<'a> {
 
     /// Process the state of the keyboard and mouse
     async fn tick(&mut self) {
+        self.tick -= 1;
+        if self.tick == 0 {
+            defmt::info!(
+                "Tick every {}s",
+                TICK_DEBUG / 1000 / REFRESH_RATE_MS as usize
+            );
+            self.tick = TICK_DEBUG;
+        }
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
             let raw = mouse_report.serialize();
