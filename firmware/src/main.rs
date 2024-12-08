@@ -223,16 +223,16 @@ async fn main(spawner: Spawner) {
         defmt::info!("let's go!");
         future::join3(
             future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
-            future::join3(matrix_fut, layout_fut, ball_sensor_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut),
+            future::join3(matrix_fut, layout_fut, ball_sensor_fut),
         )
         .await;
     } else {
         defmt::info!("let's go!");
         future::join3(
             future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
-            future::join(matrix_fut, layout_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut),
+            future::join(matrix_fut, layout_fut),
         )
         .await;
     }
