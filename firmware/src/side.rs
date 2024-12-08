@@ -124,27 +124,31 @@ pub async fn full_duplex_comm<'a>(
         loop {
             match select(ticker.next(), rx_sm.rx().wait_pull()).await {
                 Either::First(_) => {
-                    defmt::info!("Timeout waiting for Ack, resending Hello");
+                    defmt::info!("Handshake: timeout waiting for Ack, resending Hello");
                     tx_buffer.send(Event::Hello).await;
                 }
                 Either::Second(x) => {
                     match deserialize(x) {
                         Ok((event, sid)) => match event {
                             Event::Ack(ack_sid) => {
-                                defmt::warn!("[{}] Ack received about sid {}", sid, ack_sid);
+                                defmt::warn!(
+                                    "[{}] Handshake: ack received about sid {}",
+                                    sid,
+                                    ack_sid
+                                );
                                 next_rx_sid = sid.wrapping_add(1);
                                 // Send Ack back to finish the handshake
                                 tx_buffer.send(Event::Ack(sid)).await;
                                 break;
                             }
                             Event::Error(r) => {
-                                defmt::warn!("[{}] Error received about sid {}", sid, r);
+                                defmt::warn!("[{}] Handshake: error received about sid {}", sid, r);
                                 Timer::after_millis(10).await;
                                 tx_buffer.send(Event::Hello).await;
                             }
                             _ => {
                                 defmt::warn!(
-                                    "[{}] Invalid event received: {:?}",
+                                    "[{}] Handshake: invalid event received: {:?}",
                                     sid,
                                     defmt::Debug2Format(&event)
                                 );
@@ -153,7 +157,7 @@ pub async fn full_duplex_comm<'a>(
                             }
                         },
                         Err(_) => {
-                            defmt::warn!("Unable to deserialize event: 0x{:04x}", x);
+                            defmt::warn!("Handshake: unable to deserialize event: 0x{:04x}", x);
                             Timer::after_millis(10).await;
                             tx_buffer.send(Event::Hello).await;
                         }
