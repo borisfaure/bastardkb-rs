@@ -115,9 +115,9 @@ const INDEXED_COLORS: [RGB8; 11] = [
     RGB8::new(221, 87, 28),
 ];
 /// Default color: red
-const DEFAULT_COLOR_INDEX: u8 = 10;
+const DEFAULT_COLOR_INDEX: u8 = 9;
 /// Error color: orange
-pub const ERROR_COLOR_INDEX: u8 = 11;
+pub const ERROR_COLOR_INDEX: u8 = 10;
 
 impl From<u32> for RGB8 {
     fn from(i: u32) -> Self {
