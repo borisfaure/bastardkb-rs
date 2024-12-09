@@ -194,7 +194,7 @@ async fn main(spawner: Spawner) {
     );
     let pio0 = Pio::new(p.PIO0, PioIrq0);
     let rgb_leds_fut = rgb_leds::run(pio0.common, pio0.sm0, p.DMA_CH0, p.PIN_0, is_right);
-    let mut core = Core::new(hid_mouse);
+    let mut core = Core::new(hid_mouse, is_right);
     let layout_fut = core.run();
     let matrix_fut = matrix_scanner(matrix, is_right);
 

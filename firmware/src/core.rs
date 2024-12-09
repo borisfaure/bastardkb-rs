@@ -56,6 +56,8 @@ pub enum CustomEvent {
 
 /// Debug tick counter: every 5s
 const TICK_DEBUG: usize = 5000;
+/// Side Hello message, every 3s
+const TICK_SIDE_HELLO: usize = 3000;
 
 /// Core keyboard/mouse handler
 pub struct Core<'a> {
@@ -69,20 +71,26 @@ pub struct Core<'a> {
     mouse: MouseHandler,
     /// HID mouse writer
     hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>,
-    /// Tick counter
-    tick: usize,
+    /// Debug tick counter
+    debug_tick: usize,
+    /// Side Hello tick counter
+    side_hello_tick: usize,
+    /// Whether this core is the right side
+    is_right: bool,
 }
 
 impl<'a> Core<'a> {
     /// Create a new core
-    pub fn new(hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>) -> Self {
+    pub fn new(hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>, is_right: bool) -> Self {
         Self {
             layout: Layout::new(&LAYERS),
             current_layer: 0,
             kb_report: KeyboardReport::default(),
             mouse: MouseHandler::new(),
             hid_mouse_writer,
-            tick: TICK_DEBUG,
+            debug_tick: TICK_DEBUG,
+            side_hello_tick: TICK_SIDE_HELLO,
+            is_right,
         }
     }
 
@@ -106,13 +114,13 @@ impl<'a> Core<'a> {
 
     /// Process the state of the keyboard and mouse
     async fn tick(&mut self) {
-        self.tick -= 1;
-        if self.tick == 0 {
+        self.debug_tick -= 1;
+        if self.debug_tick == 0 {
             defmt::info!(
                 "Tick every {}s",
                 TICK_DEBUG / 1000 / REFRESH_RATE_MS as usize
             );
-            self.tick = TICK_DEBUG;
+            self.debug_tick = TICK_DEBUG;
         }
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
@@ -142,6 +150,17 @@ impl<'a> Core<'a> {
             defmt::info!("Layer: {}", new_layer);
             self.current_layer = new_layer;
             self.set_color_layer(new_layer as u8).await;
+        }
+
+        // Send a Hello message to the other side every Xs
+        self.side_hello_tick -= 1;
+        if self.side_hello_tick == 0 && self.is_right {
+            //defmt::info!("Sending Hello");
+            if SIDE_CHANNEL.is_full() {
+                defmt::error!("Side channel is full");
+            }
+            SIDE_CHANNEL.send(Event::Hello).await;
+            self.side_hello_tick = TICK_SIDE_HELLO;
         }
     }
 
