@@ -12,6 +12,7 @@ pub enum Event {
     Release(u8, u8),
     RgbAnim(RgbAnimType),
     RgbAnimChangeLayer(u8),
+    SeedRandom(u8),
 }
 
 impl Event {
@@ -44,6 +45,7 @@ pub fn deserialize(bytes: u32) -> Result<(Event, u8), Error> {
         [b'L', b'I', b'n', sid] => Ok((Event::RgbAnim(RgbAnimType::Input), sid)),
         [b'L', b'i', i, sid] => Ok((Event::RgbAnim(RgbAnimType::InputSolid(i)), sid)),
         [b'L', b'C', i, sid] => Ok((Event::RgbAnimChangeLayer(i), sid)),
+        [b'S', b'R', i, sid] => Ok((Event::SeedRandom(i), sid)),
         _ => Err(Error::Deserialization),
     }
 }
@@ -64,6 +66,7 @@ pub fn serialize(e: Event, sid: u8) -> u32 {
         Event::RgbAnim(RgbAnimType::Input) => u32::from_le_bytes([b'L', b'I', b'n', sid]),
         Event::RgbAnim(RgbAnimType::InputSolid(i)) => u32::from_le_bytes([b'L', b'i', i, sid]),
         Event::RgbAnimChangeLayer(i) => u32::from_le_bytes([b'L', b'C', i, sid]),
+        Event::SeedRandom(i) => u32::from_le_bytes([b'S', b'R', i, sid]),
     }
 }
 
@@ -128,6 +131,9 @@ mod tests {
             ),
             ((Event::RgbAnimChangeLayer(0), 11), 0x0b00_434c),
             ((Event::RgbAnimChangeLayer(8), 13), 0x0d08_434c),
+            ((Event::SeedRandom(0), 17), 0x1100_5253),
+            ((Event::SeedRandom(8), 19), 0x1308_5253),
+            ((Event::SeedRandom(255), 21), 0x15ff_5253),
         ] {
             let ser = serialize(event, sid);
             println!("{:x} == {:x}", ser, serialized);
