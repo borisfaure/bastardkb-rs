@@ -6,7 +6,7 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{PIN_1, PIN_29, PIO1};
 use embassy_rp::pio::{self, Direction, FifoJoin, ShiftDirection, StateMachine};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::Timer;
 use fixed::{traits::ToFixed, types::U56F8};
 use keyberon::layout::Event as KBEvent;
 use utils::serde::{deserialize, serialize, Event};
@@ -21,56 +21,71 @@ pub static SIDE_CHANNEL: Channel<CriticalSectionRawMutex, Event, NB_EVENTS> = Ch
 const TX: usize = 0;
 const RX: usize = 1;
 
+const SAVED_EVENTS: usize = 256;
+
 pub type SmRx<'a> = StateMachine<'a, PIO1, { RX }>;
 pub type SmTx<'a> = StateMachine<'a, PIO1, { TX }>;
 pub type PioCommon<'a> = pio::Common<'a, PIO1>;
 pub type PioPin<'a> = pio::Pin<'a, PIO1>;
 
-struct EventBuffer<'a, 'b> {
+struct EventBuffer<'a> {
     /// Buffer of events sent to the other half of the keyboard
-    buffer: [u32; 256],
+    buffer: [u32; SAVED_EVENTS],
     /// Current sequence id
     last_sid: u8,
 
     /// State machine to send events
     sm: SmTx<'a>,
-
-    // LED to light up when sending an event
-    status_led: &'b mut Output<'static>,
 }
 
-impl<'a, 'b> EventBuffer<'a, 'b> {
+impl<'a> EventBuffer<'a> {
     /// Create a new event buffer
-    pub fn new(sm: SmTx<'a>, status_led: &'b mut Output<'static>) -> Self {
+    pub fn new(sm: SmTx<'a>) -> Self {
+        let mut buffer = [0; SAVED_EVENTS];
+        for (i, n) in buffer.iter_mut().enumerate() {
+            *n = serialize(Event::Hello, i as u8);
+        }
         Self {
-            buffer: [0; 256],
+            buffer,
             last_sid: u8::MAX,
             sm,
-            status_led,
         }
     }
 
-    /// Replay events from the given sid
+    /// Set the current sequence id
+    pub fn set_sequence_id(&mut self, sid: u8) {
+        self.last_sid = sid;
+    }
+
+    /// Replay the event at the given sequence id
+    async fn replay_once(&mut self, sid: u8) {
+        let b = self.buffer[sid as usize];
+        defmt::info!("Replaying event {}", deserialize(b).unwrap());
+        self.sm.tx().wait_push(b).await;
+    }
+
+    // Replay all faulty events
     async fn replay_from(&mut self, first_sid: u8) {
         let start = first_sid as usize;
         let end = self.last_sid as usize;
         // The buffer is a circular buffer, so we need to iterate from sid
         // to the end of the buffer and then from the beginning of the buffer
         // to `self.last_sid` excluded.
+        defmt::info!("Replaying from {} to {}", start, end);
         if start <= end {
             for b in self.buffer[start..=end].iter() {
-                self.status_led.set_low();
+                Timer::after_millis(50).await;
+                defmt::info!("Replaying event {}", deserialize(*b).unwrap());
                 self.sm.tx().wait_push(*b).await;
-                self.status_led.set_high();
             }
         } else {
             for b in self.buffer[start..]
                 .iter()
                 .chain(self.buffer[..=end].iter())
             {
-                self.status_led.set_low();
+                Timer::after_millis(50).await;
+                defmt::info!("Replaying event {}", deserialize(*b).unwrap());
                 self.sm.tx().wait_push(*b).await;
-                self.status_led.set_high();
             }
         }
     }
@@ -78,11 +93,10 @@ impl<'a, 'b> EventBuffer<'a, 'b> {
     /// Send an event to the buffer and return its serialized value
     pub async fn send(&mut self, event: Event) {
         self.last_sid = self.last_sid.wrapping_add(1);
+        defmt::info!("Sending event {} with sid {}", event, self.last_sid);
         let b = serialize(event, self.last_sid);
         self.buffer[self.last_sid as usize] = b;
-        self.status_led.set_low();
         self.sm.tx().wait_push(b).await;
-        self.status_led.set_high();
     }
 }
 
@@ -97,191 +111,120 @@ pub async fn full_duplex_comm<'a>(
 ) {
     let (mut pin_tx, mut pin_rx) = if is_right {
         (
-            pio_common.make_pio_pin(gpio_pin_1),
             pio_common.make_pio_pin(gpio_pin_29),
+            pio_common.make_pio_pin(gpio_pin_1),
         )
     } else {
         (
-            pio_common.make_pio_pin(gpio_pin_29),
             pio_common.make_pio_pin(gpio_pin_1),
+            pio_common.make_pio_pin(gpio_pin_29),
         )
     };
+    // Ensure everything is stable before starting the communication
+    Timer::after_secs(6).await;
 
     let tx_sm = task_tx(&mut pio_common, sm0, &mut pin_tx);
     let mut rx_sm = task_rx(&mut pio_common, sm1, &mut pin_rx);
 
-    let mut tx_buffer = EventBuffer::new(tx_sm, status_led);
-    let mut next_rx_sid;
+    let mut tx_buffer = EventBuffer::new(tx_sm);
+    let mut next_rx_sid: Option<u8> = None;
+    let mut handshake = false;
     let mut rx_on_error = false;
 
-    /* handshake */
-    if is_right {
-        // Wait for the other side to boot
-        Timer::after_secs(2).await;
-        let mut ticker = Ticker::every(Duration::from_secs(2));
-        tx_buffer.send(Event::Hello).await;
-        /* Wait for the other side to acknowledge the hello */
-        loop {
-            match select(ticker.next(), rx_sm.rx().wait_pull()).await {
-                Either::First(_) => {
-                    defmt::info!("Handshake: timeout waiting for Ack, resending Hello");
-                    tx_buffer.send(Event::Hello).await;
-                }
-                Either::Second(x) => {
-                    match deserialize(x) {
-                        Ok((event, sid)) => match event {
-                            Event::Ack(ack_sid) => {
-                                defmt::warn!(
-                                    "[{}] Handshake: ack received about sid {}",
-                                    sid,
-                                    ack_sid
-                                );
-                                next_rx_sid = sid.wrapping_add(1);
-                                // Send Ack back to finish the handshake
-                                tx_buffer.send(Event::Ack(sid)).await;
-                                break;
-                            }
-                            Event::Error(r) => {
-                                defmt::warn!("[{}] Handshake: error received about sid {}", sid, r);
-                                Timer::after_millis(10).await;
-                                tx_buffer.send(Event::Hello).await;
-                            }
-                            _ => {
-                                defmt::warn!(
-                                    "[{}] Handshake: invalid event received: {:?}",
-                                    sid,
-                                    defmt::Debug2Format(&event)
-                                );
-                                Timer::after_millis(10).await;
-                                tx_buffer.send(Event::Hello).await;
-                            }
-                        },
-                        Err(_) => {
-                            defmt::warn!("Handshake: unable to deserialize event: 0x{:04x}", x);
-                            Timer::after_millis(10).await;
-                            tx_buffer.send(Event::Hello).await;
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        loop {
-            let x = rx_sm.rx().wait_pull().await;
-            match deserialize(x) {
-                Ok((event, sid)) => match event {
-                    Event::Hello => {
-                        defmt::info!("HS: [{}] Hello received", sid);
-                        tx_buffer.send(Event::Ack(sid)).await;
-                    }
-                    Event::Ack(ack_sid) => {
-                        defmt::warn!("HS: [{}] Ack received about sid {}", sid, ack_sid);
-                        next_rx_sid = sid.wrapping_add(1);
-                        break;
-                    }
-                    Event::Error(r) => {
-                        defmt::warn!("HS: [{}] Error received about sid {}", sid, r);
-                        Timer::after_millis(10).await;
-                        tx_buffer.send(Event::Ack(r)).await;
-                    }
-                    _ => {
-                        defmt::warn!(
-                            "HS: [{}] Invalid event received: {:?}",
-                            sid,
-                            defmt::Debug2Format(&event)
-                        );
-                        Timer::after_millis(10).await;
-                        tx_buffer.send(Event::Error(sid)).await;
-                    }
-                },
-                Err(_) => {
-                    defmt::warn!("HS: Unable to deserialize event: 0x{:04x}", x);
-                    Timer::after_millis(10).await;
-                    tx_buffer.send(Event::Error(0)).await;
-                }
-            }
-        }
-    }
-
-    defmt::info!("Handshake completed");
-
+    // Wait for the other side to boot
     loop {
         match select(SIDE_CHANNEL.receive(), rx_sm.rx().wait_pull()).await {
             Either::First(event) => {
                 tx_buffer.send(event).await;
             }
-            Either::Second(x) => match deserialize(x) {
-                Ok((event, sid)) => {
-                    if sid != next_rx_sid {
-                        defmt::warn!(
-                            "Invalid sid received: expected {}, got {}",
-                            next_rx_sid,
-                            sid
-                        );
+            Either::Second(x) => {
+                status_led.set_low();
+                match deserialize(x) {
+                    Ok((event, sid)) => match next_rx_sid {
+                        Some(next) if sid != next => {
+                            defmt::warn!(
+                                "Invalid sid received: expected {}, got {} for event {:?}",
+                                next,
+                                sid,
+                                defmt::Debug2Format(&event)
+                            );
+                            Timer::after_millis(10).await;
+                            tx_buffer.send(Event::Error(next)).await;
+                            if !rx_on_error {
+                                if ANIM_CHANNEL.is_full() {
+                                    defmt::error!("Anim channel is full");
+                                }
+                                ANIM_CHANNEL.send(AnimCommand::Error).await;
+                                next_rx_sid = Some(next);
+                            }
+                        }
+                        _ => {
+                            defmt::info!(
+                                "Received [{}] Event: {:?}",
+                                sid,
+                                defmt::Debug2Format(&event)
+                            );
+                            if rx_on_error && !event.is_error() {
+                                rx_on_error = false;
+                                if ANIM_CHANNEL.is_full() {
+                                    defmt::error!("Anim channel is full");
+                                }
+                                ANIM_CHANNEL.send(AnimCommand::Fixed).await;
+                            }
+                            next_rx_sid = Some(sid.wrapping_add(1));
+                            match event {
+                                Event::Hello => {
+                                    tx_buffer.send(Event::Ack(sid)).await;
+                                }
+                                Event::Ack(_) => {}
+                                Event::Error(r) => {
+                                    Timer::after_millis(10).await;
+                                    if !handshake {
+                                        tx_buffer.set_sequence_id(r);
+                                        handshake = true;
+                                        tx_buffer.replay_once(r).await;
+                                    } else {
+                                        tx_buffer.replay_from(r).await;
+                                    }
+                                }
+                                Event::Press(i, j) => {
+                                    if LAYOUT_CHANNEL.is_full() {
+                                        defmt::error!("Layout channel is full");
+                                    }
+                                    LAYOUT_CHANNEL.send(KBEvent::Press(i, j)).await;
+                                }
+                                Event::Release(i, j) => {
+                                    if LAYOUT_CHANNEL.is_full() {
+                                        defmt::error!("Layout channel is full");
+                                    }
+                                    LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
+                                }
+                                Event::RgbAnim(anim) => {
+                                    if ANIM_CHANNEL.is_full() {
+                                        defmt::error!("Anim channel is full");
+                                    }
+                                    ANIM_CHANNEL.send(AnimCommand::Set(anim)).await;
+                                }
+                                Event::RgbAnimChangeLayer(layer) => {
+                                    if ANIM_CHANNEL.is_full() {
+                                        defmt::error!("Anim channel is full");
+                                    }
+                                    ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
+                                }
+                            }
+                        }
+                    },
+                    Err(_) => {
+                        defmt::warn!("Unable to deserialize event: 0x{:04x}", x);
                         Timer::after_millis(10).await;
-                        tx_buffer.send(Event::Error(next_rx_sid)).await;
-                        if ANIM_CHANNEL.is_full() {
-                            defmt::error!("Anim channel is full");
+                        if let Some(sid) = next_rx_sid {
+                            tx_buffer.send(Event::Error(sid)).await;
                         }
-                        ANIM_CHANNEL.send(AnimCommand::Error).await;
                         rx_on_error = true;
-                    } else {
-                        defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
-                        next_rx_sid = sid.wrapping_add(1);
-                        if rx_on_error && !event.is_error() {
-                            if ANIM_CHANNEL.is_full() {
-                                defmt::error!("Anim channel is full");
-                            }
-                            ANIM_CHANNEL.send(AnimCommand::Fixed).await;
-                            rx_on_error = false;
-                        }
-                        match event {
-                            Event::Hello => {
-                                defmt::warn!("Hello received");
-                                tx_buffer.send(Event::Ack(sid)).await;
-                            }
-                            Event::Ack(_) => {
-                                defmt::warn!("Unexpected Ack received");
-                            }
-                            Event::Error(r) => {
-                                Timer::after_millis(10).await;
-                                tx_buffer.replay_from(r).await;
-                            }
-                            Event::Press(i, j) => {
-                                if LAYOUT_CHANNEL.is_full() {
-                                    defmt::error!("Layout channel is full");
-                                }
-                                LAYOUT_CHANNEL.send(KBEvent::Press(i, j)).await;
-                            }
-                            Event::Release(i, j) => {
-                                if LAYOUT_CHANNEL.is_full() {
-                                    defmt::error!("Layout channel is full");
-                                }
-                                LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
-                            }
-                            Event::RgbAnim(anim) => {
-                                if ANIM_CHANNEL.is_full() {
-                                    defmt::error!("Anim channel is full");
-                                }
-                                ANIM_CHANNEL.send(AnimCommand::Set(anim)).await;
-                            }
-                            Event::RgbAnimChangeLayer(layer) => {
-                                if ANIM_CHANNEL.is_full() {
-                                    defmt::error!("Anim channel is full");
-                                }
-                                ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
-                            }
-                        }
                     }
                 }
-                Err(_) => {
-                    defmt::warn!("Unable to deserialize event: 0x{:04x}", x);
-                    Timer::after_millis(10).await;
-                    tx_buffer.send(Event::Error(next_rx_sid)).await;
-                    ANIM_CHANNEL.send(AnimCommand::Error).await;
-                    rx_on_error = true;
-                }
-            },
+                status_led.set_high();
+            }
         }
     }
 }
