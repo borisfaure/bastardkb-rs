@@ -58,11 +58,11 @@ pub async fn tx_loop(mut tx_sm: SmTx<'_>) {
     loop {
         Timer::after_secs(2).await;
         for n in TEST_DATA.iter() {
-            //info!("sending event 0x{:08x} 0b{:032b}", n, n);
+            info!("sending event 0x{:08x} 0b{:032b}", n, n);
             tx_sm.tx().wait_push(*n).await;
             Timer::after_millis(10).await;
         }
-        Timer::after_secs(10).await;
+        Timer::after_secs(4).await;
     }
 }
 
@@ -95,8 +95,17 @@ pub async fn full_duplex_comm<'a>(
     gpio_pin_29: PIN_29,
     status_led: &mut Output<'a>,
 ) {
-    let mut pin_tx = pio_common.make_pio_pin(gpio_pin_29);
-    let mut pin_rx = pio_common.make_pio_pin(gpio_pin_1);
+    let (mut pin_tx, mut pin_rx) = if false {
+        (
+            pio_common.make_pio_pin(gpio_pin_1),
+            pio_common.make_pio_pin(gpio_pin_29),
+        )
+    } else {
+        (
+            pio_common.make_pio_pin(gpio_pin_29),
+            pio_common.make_pio_pin(gpio_pin_1),
+        )
+    };
 
     let tx_sm = task_tx(&mut pio_common, sm0, &mut pin_tx);
     let rx_sm = task_rx(&mut pio_common, sm1, &mut pin_rx);
@@ -138,20 +147,18 @@ fn task_rx<'a>(
     rx_pin: &mut PioPin<'a>,
 ) -> SmRx<'a> {
     let rx_prog = pio_proc::pio_file!("src/rx.pio");
-
-    let mut cfg = embassy_rp::pio::Config::default();
-    cfg.use_program(&common.load_program(&rx_prog.program), &[]);
-
     sm_rx.set_pins(Level::High, &[rx_pin]);
-    cfg.set_in_pins(&[rx_pin]);
-    cfg.set_jmp_pin(rx_pin);
     sm_rx.set_pin_dirs(Direction::In, &[rx_pin]);
 
-    cfg.clock_divider = pio_freq();
+    let mut cfg = embassy_rp::pio::Config::default();
+    cfg.set_in_pins(&[rx_pin]);
+    cfg.set_jmp_pin(rx_pin);
+    cfg.use_program(&common.load_program(&rx_prog.program), &[]);
     cfg.shift_in.auto_fill = false;
     cfg.shift_in.direction = ShiftDirection::Right;
     cfg.shift_in.threshold = 32;
     cfg.fifo_join = FifoJoin::RxOnly;
+    cfg.clock_divider = pio_freq();
     sm_rx.set_config(&cfg);
     sm_rx.set_enable(true);
 
@@ -165,6 +172,7 @@ async fn main(_spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
     let pio1 = Pio::new(p.PIO1, PioIrq1);
     let mut status_led = Output::new(p.PIN_24, Level::Low);
+    status_led.set_high();
 
     full_duplex_comm(
         pio1.common,
