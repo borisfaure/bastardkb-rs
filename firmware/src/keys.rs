@@ -64,30 +64,30 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
     loop {
         let transform = if is_right {
             |e: KBEvent| {
-                e.transform(|i, j| {
-                    if i == 3 {
-                        match j {
+                e.transform(|r, c| {
+                    if r == 3 {
+                        match c {
                             0 => (3, 5),
                             2 => (3, 6),
-                            _ => panic!("Invalid key {:?}", (i, j)),
+                            _ => panic!("Invalid key {:?}", (r, c)),
                         }
                     } else {
-                        (i, 9 - j)
+                        (r, 9 - c)
                     }
                 })
             }
         } else {
             |e: KBEvent| {
-                e.transform(|i, j| {
-                    if i == 3 {
-                        match j {
+                e.transform(|r, c| {
+                    if r == 3 {
+                        match c {
                             0 => (3, 4),
                             2 => (3, 2),
                             3 => (3, 3),
-                            _ => panic!("Invalid key {:?}", (i, j)),
+                            _ => panic!("Invalid key {:?}", (r, c)),
                         }
                     } else {
-                        (i, j)
+                        (r, c)
                     }
                 })
             }
@@ -107,21 +107,21 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
                 RGB_CHANNEL.send(event).await;
             } else {
                 match event {
-                    KBEvent::Press(i, j) => {
+                    KBEvent::Press(r, c) => {
                         if SIDE_CHANNEL.is_full() {
                             defmt::error!("Side channel is full");
                         }
-                        SIDE_CHANNEL.send(Event::Press(i, j)).await;
+                        SIDE_CHANNEL.send(Event::Press(r, c)).await;
                         if RGB_CHANNEL.is_full() {
                             defmt::error!("RGB channel is full");
                         }
                         RGB_CHANNEL.send(event).await;
                     }
-                    KBEvent::Release(i, j) => {
+                    KBEvent::Release(r, c) => {
                         if SIDE_CHANNEL.is_full() {
                             defmt::error!("Side channel is full");
                         }
-                        SIDE_CHANNEL.send(Event::Release(i, j)).await;
+                        SIDE_CHANNEL.send(Event::Release(r, c)).await;
                         if RGB_CHANNEL.is_full() {
                             defmt::error!("RGB channel is full");
                         }

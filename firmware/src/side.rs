@@ -211,7 +211,7 @@ pub async fn full_duplex_comm<'a>(
                                     }
                                     ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
                                 }
-                                Event::SeedRandom(seed) => {
+                                Event::SeedRng(seed) => {
                                     todo!("Seed random {}", seed);
                                 }
                             }
