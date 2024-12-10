@@ -1,25 +1,19 @@
 //! Serialization and deserialization of key events
 
+use crate::log::*;
 use crate::rgb_anims::RgbAnimType;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Event {
     Hello,
-    Error(u8),
-    Ack(u8),
-    Press(u8, u8),
-    Release(u8, u8),
-    RgbAnim(RgbAnimType),
-    RgbAnimChangeLayer(u8),
-    SeedRng(u8),
-}
-
-impl Event {
-    /// whether the event is an error
-    pub fn is_error(&self) -> bool {
-        matches!(self, Event::Error(_))
-    }
+    Error(u8),              // SidSize
+    Ack(u8),                // SidSize
+    Press(u8, u8),          // r: [0, 3], c: [0, 4]: 7 bits
+    Release(u8, u8),        // r: [0, 3], c: [0, 4]: 7 bits
+    RgbAnim(RgbAnimType),   // 8 bits
+    RgbAnimChangeLayer(u8), // 4 bits
+    SeedRng(u8),            // 8 bits
 }
 
 #[derive(Debug)]
@@ -27,6 +21,46 @@ impl Event {
 pub enum Error {
     Serialization,
     Deserialization,
+}
+
+const SID_MAX: u8 = 15;
+
+impl Event {
+    /// whether the event is an error
+    pub fn is_error(&self) -> bool {
+        matches!(self, Event::Error(_))
+    }
+
+    /// Convert the event to a u16
+    /// The upper 5 bits are the sequence id
+    /// Then are 3 bits for the event type
+    /// The lower 8 bits are the event data
+    pub fn to_u16(&self, sid: u8) -> Result<u16, Error> {
+        if sid > SID_MAX {
+            error!("sid must be less than {}", SID_MAX);
+            return Err(Error::Serialization);
+        }
+        let sid = (sid as u16) << 11;
+        let (tag, data) = match self {
+            Event::Hello => Ok((0b000, 0)),
+            Event::Error(err) if *err <= SID_MAX => Ok((0b001, *err as u16)),
+            Event::Error(_) => Err(Error::Serialization),
+            Event::Ack(ack) if *ack <= SID_MAX => Ok((0xb010, *ack as u16)),
+            Event::Ack(_) => Err(Error::Serialization),
+            Event::Press(r, c) if *r <= 3 && *c <= 4 => {
+                Ok((0b011, ((*r as u16) << 3) | (*c as u16)))
+            }
+            Event::Press(_, _) => Err(Error::Serialization),
+            Event::Release(r, c) if *r <= 3 && *c <= 4 => {
+                Ok((0b100, ((*r as u16) << 3) | (*c as u16)))
+            }
+            Event::Release(_, _) => Err(Error::Serialization),
+            Event::RgbAnim(anim) => Ok((0b101, anim.to_u8()? as u16)),
+            Event::RgbAnimChangeLayer(layer) => Ok((0b100, *layer as u16)),
+            Event::SeedRng(seed) => Ok((0b111, *seed as u16)),
+        }?;
+        Ok(sid | (tag << 8) | data)
+    }
 }
 
 /// Deserialize a key event from the serial line
