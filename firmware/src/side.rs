@@ -21,7 +21,7 @@ pub static SIDE_CHANNEL: Channel<CriticalSectionRawMutex, Event, NB_EVENTS> = Ch
 const TX: usize = 0;
 const RX: usize = 1;
 
-const SAVED_EVENTS: usize = 256;
+const SAVED_EVENTS: usize = 32;
 
 pub type SmRx<'a> = StateMachine<'a, PIO1, { RX }>;
 pub type SmTx<'a> = StateMachine<'a, PIO1, { TX }>;
@@ -43,11 +43,11 @@ impl<'a> EventBuffer<'a> {
     pub fn new(sm: SmTx<'a>) -> Self {
         let mut buffer = [0; SAVED_EVENTS];
         for (i, n) in buffer.iter_mut().enumerate() {
-            *n = serialize(Event::Hello, i as u8);
+            *n = serialize(Event::Hello, i as u8).unwrap();
         }
         Self {
             buffer,
-            last_sid: u8::MAX,
+            last_sid: SAVED_EVENTS as u8 - 1,
             sm,
         }
     }
@@ -92,9 +92,12 @@ impl<'a> EventBuffer<'a> {
 
     /// Send an event to the buffer and return its serialized value
     pub async fn send(&mut self, event: Event) {
-        self.last_sid = self.last_sid.wrapping_add(1);
+        self.last_sid += 1;
+        if self.last_sid == SAVED_EVENTS as u8 {
+            self.last_sid = 0;
+        }
         defmt::info!("Sending event {} with sid {}", event, self.last_sid);
-        let b = serialize(event, self.last_sid);
+        let b = serialize(event, self.last_sid).unwrap();
         self.buffer[self.last_sid as usize] = b;
         self.sm.tx().wait_push(b).await;
     }
@@ -171,7 +174,11 @@ pub async fn full_duplex_comm<'a>(
                                 }
                                 ANIM_CHANNEL.send(AnimCommand::Fixed).await;
                             }
-                            next_rx_sid = Some(sid.wrapping_add(1));
+                            let mut next = sid + 1;
+                            if next == SAVED_EVENTS as u8 {
+                                next = 0;
+                            }
+                            next_rx_sid = Some(next);
                             match event {
                                 Event::Hello => {
                                     tx_buffer.send(Event::Ack(sid)).await;
