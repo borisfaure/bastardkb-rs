@@ -19,7 +19,7 @@ pub enum Event {
     SeedRng(u8),            // 8 bits
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     Serialization,
@@ -164,6 +164,17 @@ mod tests {
             debug!("DE: Event: {:?}, sid: {}", de.0, de.1);
             assert_eq!(sid, de.1);
             assert_eq!(event, de.0);
+        }
+    }
+
+    #[test]
+    fn test_bad_crc() {
+        for (event, sid) in VALID_EVENTS.iter().copied() {
+            let ser = serialize(event, sid).unwrap();
+            let mut bytes = ser.to_le_bytes();
+            bytes[0] = bytes[0].wrapping_add(1);
+            let bad_crc = u32::from_le_bytes(bytes);
+            assert_eq!(Err(Error::Deserialization), deserialize(bad_crc));
         }
     }
 }
