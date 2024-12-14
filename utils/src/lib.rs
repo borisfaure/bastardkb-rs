@@ -14,3 +14,6 @@ pub mod log;
 
 /// Mouse moves
 pub mod mouse_move;
+
+/// Sequence Id
+pub mod sid;
