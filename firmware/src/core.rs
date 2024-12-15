@@ -56,8 +56,8 @@ pub enum CustomEvent {
 
 /// Debug tick counter: every 5s
 const TICK_DEBUG: usize = 5000;
-/// Side Hello message, every 3s
-const TICK_SIDE_HELLO: usize = 3000;
+/// Side Ping message, every 3s
+const TICK_SIDE_PING: usize = 3000;
 
 /// Core keyboard/mouse handler
 pub struct Core<'a> {
@@ -73,8 +73,8 @@ pub struct Core<'a> {
     hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>,
     /// Debug tick counter
     debug_tick: usize,
-    /// Side Hello tick counter
-    side_hello_tick: usize,
+    /// Side Ping tick counter
+    side_ping_tick: usize,
     /// Whether this core is the right side
     is_right: bool,
 }
@@ -89,7 +89,7 @@ impl<'a> Core<'a> {
             mouse: MouseHandler::new(),
             hid_mouse_writer,
             debug_tick: TICK_DEBUG,
-            side_hello_tick: TICK_SIDE_HELLO,
+            side_ping_tick: TICK_SIDE_PING,
             is_right,
         }
     }
@@ -152,15 +152,15 @@ impl<'a> Core<'a> {
             self.set_color_layer(new_layer as u8).await;
         }
 
-        // Send a Hello message to the other side every Xs
-        self.side_hello_tick -= 1;
-        if self.side_hello_tick == 0 && self.is_right {
-            //defmt::info!("Sending Hello");
+        // Send a Ping message to the other side every Xs
+        self.side_ping_tick -= 1;
+        if self.side_ping_tick == 0 && self.is_right {
+            //defmt::info!("Sending Ping");
             if SIDE_CHANNEL.is_full() {
                 defmt::error!("Side channel is full");
             }
-            SIDE_CHANNEL.send(Event::Hello).await;
-            self.side_hello_tick = TICK_SIDE_HELLO;
+            SIDE_CHANNEL.send(Event::Ping).await;
+            self.side_ping_tick = TICK_SIDE_PING;
         }
     }
 
