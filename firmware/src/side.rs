@@ -180,53 +180,6 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
     //    self.unqueue().await;
     //}
 
-    // Send an ACK for the given sequence id
-    //async fn send_ack(&mut self, sid: u8) {
-    //    defmt::info!("Sending ACK for sid {}", sid);
-    //    self.send_event(Event::Ack(sid)).await;
-    //}
-
-    // Received an ACK for the given sequence id
-    // This means the other side has received this event
-    //async fn on_ack(&mut self, sid: u8) {
-    //    // The buffer is a circular buffer
-    //    self.sent_buffer[sid as usize] = None;
-    //}
-
-    // On invalid sequence id
-    //async fn on_invalid_sid(&mut self, sid: Sid) {
-    //    defmt::warn!(
-    //        "Invalid sid received: expected {}, got {}",
-    //        self.next_rx_sid,
-    //        sid
-    //    );
-    //    if expected < got {
-    //        for i in expected..=got {
-    //            self.rx_errors[i as usize] = true;
-    //        }
-    //    } else {
-    //        for i in expected..=SEQ_ID_MAX {
-    //            self.rx_errors[i as usize] = true;
-    //        }
-    //        for i in 0..=got {
-    //            self.rx_errors[i as usize] = true;
-    //        }
-    //    }
-    //    Timer::after_millis(5).await;
-    //    self.send_event(Event::Retransmit(expected)).await;
-    //}
-
-    // On error
-    //async fn rx_error(&mut self) {
-    //    if !self.rx_on_error {
-    //        if ANIM_CHANNEL.is_full() {
-    //            defmt::error!("Anim channel is full");
-    //        }
-    //        ANIM_CHANNEL.send(AnimCommand::Error).await;
-    //        self.rx_on_error = true;
-    //    }
-    //}
-
     // Handle an error from the other side
     //async fn retransmit(&mut self, r: u8) {
     //    if !self.tx_errors[r as usize] {
@@ -234,31 +187,6 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
     //        self.nb_tx_errors += 1;
     //    }
     //    self.replay_once(r).await;
-    //}
-
-    // On Ok event
-    //pub async fn handle_received_event(&mut self, event: Event, sid: u8) {
-    //    // Send an ACK for the event
-    //    if event.needs_ack() || self.rx_on_error {
-    //        self.send_ack(sid).await;
-    //    }
-    //    let mut next = sid + 1;
-    //    if next > SEQ_ID_MAX {
-    //        next = 0;
-    //    }
-    //    self.next_rx_sid = Some(next);
-    //    self.process_event(event, sid).await;
-    //    let next = if sid == SEQ_ID_MAX { 0 } else { sid + 1 };
-    //    if self.rx_errors[next as usize] {
-    //        self.send_event(Event::Retransmit(next)).await;
-    //    }
-    //    if self.rx_on_error && !event.is_error() {
-    //        if ANIM_CHANNEL.is_full() {
-    //            defmt::error!("Anim channel is full");
-    //        }
-    //        ANIM_CHANNEL.send(AnimCommand::Fixed).await;
-    //        self.rx_on_error = false;
-    //    }
     //}
 
     // Mark rx error
@@ -269,31 +197,6 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
     //        }
     //        ANIM_CHANNEL.send(AnimCommand::Error).await;
     //        self.rx_on_error = true;
-    //    }
-    //}
-
-    // On received event
-    //pub async fn on_received_event(&mut self, x: u32) {
-    //    match deserialize(x) {
-    //        Ok((event, sid)) => {
-    //            let sid = Sid { v: sid };
-    //            defmt::info!(
-    //                "Received [{}/{}] Event: {:?}",
-    //                sid,
-    //                self.next_rx_sid.v,
-    //                defmt::Debug2Format(&event)
-    //            );
-    //            if self.next_rx_sid != sid {
-    //                self.on_invalid_sid(sid).await;
-    //            } else {
-    //                self.handle_received_event(event, sid).await;
-    //            }
-    //        }
-    //        Err(_) => {
-    //            defmt::warn!("Unable to deserialize event: 0x{:04x}", x);
-    //            Timer::after_millis(5).await;
-    //            self.send_event(Event::Retransmit(self.next_rx_sid.v)).await;
-    //        }
     //    }
     //}
 
