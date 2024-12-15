@@ -82,6 +82,12 @@ impl<T: Copy> CircBuf<T> {
         v
     }
 
+    /// Get the value at the sequence id
+    /// Does not remove it
+    pub fn get(&self, sid: Sid) -> Option<T> {
+        self.arr[sid.as_usize()]
+    }
+
     /// Insert a value at the sequence id
     pub fn insert(&mut self, sid: Sid, val: T) {
         let pos = sid.as_usize();
@@ -140,6 +146,10 @@ mod tests {
         buf.insert(Sid::new(0), 1);
         buf.insert(Sid::new(1), 2);
         buf.insert(Sid::new(2), 3);
+        assert_eq!(buf.get(Sid::new(0)), Some(1));
+        assert_eq!(buf.get(Sid::new(1)), Some(2));
+        assert_eq!(buf.get(Sid::new(2)), Some(3));
+        assert_eq!(buf.take(Sid::new(24)), None);
         assert_eq!(buf.take(Sid::new(1)), Some(2));
         assert_eq!(buf.take(Sid::new(1)), None);
         assert_eq!(buf.take(Sid::new(0)), Some(1));
