@@ -10,6 +10,7 @@ default = []
 
 [dependencies]
 crc16 = "0.4"
+arraydeque = { version = "0.5", default-features = false }
 
 [target.'cfg(not(target_arch = "x86_64"))'.dependencies]
 defmt = "0.3"

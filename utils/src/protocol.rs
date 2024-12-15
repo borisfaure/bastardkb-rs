@@ -96,16 +96,17 @@ impl<W: Sized + Hardware> SideProtocol<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arraydeque::ArrayDeque;
     use lovely_env_logger;
 
     struct MockHardware {
         msg_sent: usize,
-        last_msg: Option<Message>,
+        queue: ArrayDeque<Message, 64, arraydeque::behavior::Saturating>,
     }
     impl Hardware for MockHardware {
         fn send(&mut self, msg: Message) -> impl future::Future<Output = ()> + Send {
             self.msg_sent += 1;
-            self.last_msg = Some(msg);
+            self.queue.push_front(msg).unwrap();
             async {}
         }
         fn wait_a_bit(&mut self) -> impl future::Future<Output = ()> + Send {
@@ -119,7 +120,21 @@ mod tests {
         fn new() -> Self {
             Self {
                 msg_sent: 0,
-                last_msg: None,
+                quueue: ArrayDeque::new(),
+            }
+        }
+    }
+
+    fn communicate(right: &mut SideProtocol<MockHardware>, left: &mut SideProtocol<MockHardware>) {
+        loop {
+            if let Some(msg) = right.hw.queue.pop_back() {
+                left.receive(msg).await;
+            }
+            if let Some(msg) = left.hw.queue.pop_back() {
+                right.receive(msg).await;
+            }
+            if right.hw.queue.is_empty() && left.hw.queue.is_empty() {
+                break;
             }
         }
     }
