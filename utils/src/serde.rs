@@ -1,6 +1,5 @@
 //! Serialization and deserialization of key events
 
-use crate::log::*;
 use crate::rgb_anims::RgbAnimType;
 
 use crate::sid::Sid;
@@ -25,7 +24,7 @@ pub enum Error {
     Serialization,
     Deserialization,
 }
-type Message = u32;
+pub type Message = u32;
 
 impl Event {
     /// whether the event is a retransmit
@@ -102,6 +101,7 @@ pub fn serialize(e: Event, sid: Sid) -> Result<Message, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::log::*;
     use crate::rgb_anims::ERROR_COLOR_INDEX;
     use crate::sid::Sid;
 
