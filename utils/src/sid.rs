@@ -43,6 +43,47 @@ impl Sid {
     pub const fn max() -> Self {
         Self { v: SID_MAX_U8 }
     }
+
+    /// Iterator for sequence id
+    /// If @end is reached, the iterator will return None
+    pub fn iter(&self, end: Sid) -> SidIter {
+        SidIter {
+            sid: *self,
+            end,
+            eof: false,
+        }
+    }
+}
+
+/// Iterator for sequence id
+pub struct SidIter {
+    /// Current sequence id
+    sid: Sid,
+    /// End sequence id (inclusive)
+    end: Sid,
+    /// Whether the end has been reached
+    eof: bool,
+}
+impl core::iter::Iterator for SidIter {
+    type Item = Sid;
+
+    fn next(&mut self) -> Option<Sid> {
+        if self.eof {
+            return None;
+        }
+        let r = Some(self.sid);
+        self.sid.next();
+        if self.sid == self.end {
+            self.eof = true;
+        }
+        r
+    }
+}
+
+impl PartialOrd for Sid {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.v.cmp(&other.v))
+    }
 }
 
 // Implement Display for Sid
@@ -133,6 +174,38 @@ mod tests {
         sid.v = 31;
         sid.next();
         assert_eq!(sid, Sid::new(0));
+    }
+
+    #[test]
+    fn test_sid_iter() {
+        let sid = Sid::new(3);
+        let mut iter = sid.iter(Sid::new(6));
+        assert_eq!(iter.next(), Some(Sid::new(3)));
+        assert_eq!(iter.next(), Some(Sid::new(4)));
+        assert_eq!(iter.next(), Some(Sid::new(5)));
+        assert_eq!(iter.next(), None);
+        let sid = Sid::new(30);
+        let mut iter = sid.iter(Sid::new(1));
+        assert_eq!(iter.next(), Some(Sid::new(30)));
+        assert_eq!(iter.next(), Some(Sid::new(31)));
+        assert_eq!(iter.next(), Some(Sid::new(0)));
+        assert_eq!(iter.next(), None);
+
+        let sid = Sid::new(17);
+        let mut iter = sid.iter(Sid::new(17));
+        let mut count = 0;
+        while let Some(_) = iter.next() {
+            count += 1;
+        }
+        assert_eq!(count, SID_MAX_U8 as usize + 1);
+
+        let sid = Sid::new(17);
+        let mut iter = sid.iter(Sid::new(18));
+        let mut count = 0;
+        while let Some(_) = iter.next() {
+            count += 1;
+        }
+        assert_eq!(count, 1);
     }
 
     #[test]
