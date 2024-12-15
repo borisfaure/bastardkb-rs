@@ -53,6 +53,8 @@ impl core::fmt::Display for Sid {
 }
 
 /// Circular buffer to store values by sequence id
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct CircBuf<T> {
     /// Array of values
     arr: [Option<T>; (SID_MAX_U8 + 1) as usize],
@@ -97,6 +99,12 @@ impl<T: Copy> CircBuf<T> {
     /// Whether the container is empty
     pub fn is_empty(&self) -> bool {
         self.count == 0
+    }
+}
+
+impl<T: Copy> Default for CircBuf<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
