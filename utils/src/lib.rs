@@ -17,3 +17,6 @@ pub mod mouse_move;
 
 /// Sequence Id
 pub mod sid;
+
+/// Protocol
+pub mod protocol;
