@@ -100,9 +100,14 @@ impl<'a> Hardware for SenderHw<'a> {
 
 impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
     /// Create a new event buffer
-    pub fn new(sender_hw: W, rx_sm: SmRx<'a>, status_led: &'a mut Output<'static>) -> Self {
+    pub fn new(
+        name: &'static str,
+        sender_hw: W,
+        rx_sm: SmRx<'a>,
+        status_led: &'a mut Output<'static>,
+    ) -> Self {
         Self {
-            protocol: SideProtocol::new(sender_hw),
+            protocol: SideProtocol::new(sender_hw, name),
             queued_buffer: [None; QUEUE_SIZE],
             queued: 0,
             next_queued: 0,
@@ -336,9 +341,10 @@ pub async fn full_duplex_comm<'a>(
     let tx_sm = task_tx(&mut pio_common, sm0, &mut pin_tx);
     let rx_sm = task_rx(&mut pio_common, sm1, &mut pin_rx);
 
+    let name = if is_right { "Right" } else { "Left" };
     let sender_hw = SenderHw { tx: tx_sm };
     let mut sides_comms: SidesComms<'_, SenderHw<'_>> =
-        SidesComms::new(sender_hw, rx_sm, status_led);
+        SidesComms::new(name, sender_hw, rx_sm, status_led);
     sides_comms.run().await;
 }
 
