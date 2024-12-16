@@ -14,7 +14,7 @@ default = ["keymap_borisfaure"]
 utils = {path = "../utils", features = ["defmt"]}
 embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
 embassy-sync = { git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
-embassy-executor = { git = "https://github.com/embassy-rs/embassy", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt", "integrated-timers"] }
+embassy-executor = { git = "https://github.com/embassy-rs/embassy", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { git = "https://github.com/embassy-rs/embassy", features = ["defmt", "defmt-timestamp-uptime"] }
 embassy-rp = { git = "https://github.com/embassy-rs/embassy", features = ["rt", "defmt", "time-driver", "critical-section-impl", "rp2040",
 "rom-func-cache", "intrinsics", "rom-v2-intrinsics"] }
