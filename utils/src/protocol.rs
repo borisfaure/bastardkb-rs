@@ -30,6 +30,8 @@ pub struct SideProtocol<W: Sized + Hardware> {
     /// Retransmit requests
     /// The key is the sid used to retransmit
     retransmit: CircBuf<Sid>,
+    /// Last message received, if from a retransmit request
+    last_msg: Option<Message>,
 
     /// Expecting sid
     next_rx_sid: Sid,
@@ -52,6 +54,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
             retransmit: CircBuf::new(),
             next_rx_sid: Sid::default(),
             next_tx_sid: Sid::default(),
+            last_msg: None,
             rx_errors: CircBuf::new(),
             hw,
         }
@@ -81,11 +84,17 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     }
 
     /// On invalid sequence id
-    async fn on_invalid_sid(&mut self, sid: Sid) {
+    async fn on_invalid_sid(&mut self, msg: Message, sid: Sid) {
         warn!(
             "[{}] Invalid sid received: expected {}, got {}",
             self.name, self.next_rx_sid, sid
         );
+        if let Some(last_msg) = self.last_msg {
+            if last_msg == msg {
+                warn!("[{}] Last message was the same, skip it", self.name);
+                return;
+            }
+        }
         let mut next = sid;
         next.next();
         for s in self.next_rx_sid.iter(next) {
@@ -131,7 +140,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     }
 
     /// On Ok event
-    async fn handle_received_event(&mut self, event: Event, sid: Sid) {
+    async fn handle_received_event(&mut self, msg: Message, event: Event, sid: Sid) {
         match event {
             Event::Noop => {}
             Event::Ping => {
@@ -150,6 +159,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
         }
         // If this Sequence Id had an error, we can clear it now
         if self.rx_errors.get(sid).is_some() {
+            self.last_msg = Some(msg);
             self.rx_errors.remove(sid);
             /* Remove related retransmit requests */
             for idx in Sid::new(0).iter(Sid::new(0)) {
@@ -164,6 +174,8 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                     }
                 }
             }
+        } else {
+            self.last_msg = None;
         }
         if self.rx_errors.is_empty() {
             self.hw.set_error_state(false).await;
@@ -188,10 +200,10 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                     Debug2Format(&event)
                 );
                 if self.next_rx_sid != sid {
-                    self.on_invalid_sid(sid).await;
+                    self.on_invalid_sid(msg, sid).await;
                 } else {
                     self.next_rx_sid.next();
-                    self.handle_received_event(event, sid).await;
+                    self.handle_received_event(msg, event, sid).await;
                 }
             }
             Err(_) => {
@@ -305,6 +317,37 @@ mod tests {
         right.hw.queue.pop_back().unwrap();
         right.send_event(Event::Ping).await;
         right.hw.queue.pop_back().unwrap();
+        right.send_event(Event::Ping).await;
+        // Let it commmunicate and stabilize
+        communicate(&mut right, &mut left).await;
+        assert!(is_stable(&right));
+        assert!(is_stable(&left));
+    }
+
+    #[tokio::test]
+    async fn test_retransmit() {
+        let _ = lovely_env_logger::try_init_default();
+        let hw_right = MockHardware::new();
+        let hw_left = MockHardware::new();
+        let mut right = SideProtocol::new(hw_right, "right");
+        let mut left = SideProtocol::new(hw_left, "left");
+
+        // Send 2 pings from right to left but corrupt the 3 next ones,
+        // followed by a correct one
+        right.send_event(Event::Ping).await;
+        right.send_event(Event::Ping).await;
+        right.send_event(Event::Ping).await;
+        right.send_event(Event::Ping).await;
+        right.send_event(Event::Ping).await;
+        let mut bad = [0u32, 0, 0];
+        for i in 0..3 {
+            let mut msg = right.hw.queue.pop_front().unwrap();
+            msg ^= 0x1234;
+            bad[i] = msg;
+        }
+        for i in 0..3 {
+            right.hw.queue.push_front(bad[i]).unwrap();
+        }
         right.send_event(Event::Ping).await;
         // Let it commmunicate and stabilize
         communicate(&mut right, &mut left).await;
