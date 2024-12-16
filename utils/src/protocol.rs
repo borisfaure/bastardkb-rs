@@ -83,7 +83,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
             "[{}] Invalid sid received: expected {}, got {}",
             self.name, self.next_rx_sid, sid
         );
-        let mut next = sid.clone();
+        let mut next = sid;
         next.next();
         for s in self.next_rx_sid.iter(next) {
             self.rx_errors.insert(s, ());
