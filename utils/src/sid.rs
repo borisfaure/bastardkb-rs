@@ -147,6 +147,11 @@ impl<T: Copy> CircBuf<T> {
     pub fn is_empty(&self) -> bool {
         self.count == 0
     }
+
+    /// Iterator on all the elements
+    pub fn iter(&self) -> core::slice::Iter<Option<T>> {
+        self.arr.iter()
+    }
 }
 
 impl<T: Copy> Default for CircBuf<T> {

@@ -32,6 +32,11 @@ impl Event {
         matches!(self, Event::Retransmit(_))
     }
 
+    /// whether the event is an ack
+    pub fn is_ack(&self) -> bool {
+        matches!(self, Event::Ack(_))
+    }
+
     /// whether the event is needs a ack
     pub fn needs_ack(&self) -> bool {
         !matches!(self, Event::Noop | Event::Ack(_) | Event::Retransmit(_))
