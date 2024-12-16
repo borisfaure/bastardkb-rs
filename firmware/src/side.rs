@@ -22,24 +22,14 @@ pub static SIDE_CHANNEL: Channel<CriticalSectionRawMutex, Event, NB_EVENTS> = Ch
 const TX: usize = 0;
 const RX: usize = 1;
 
-/// Size of the queue
-const QUEUE_SIZE: usize = 32;
-
 pub type SmRx<'a> = StateMachine<'a, PIO1, { RX }>;
 pub type SmTx<'a> = StateMachine<'a, PIO1, { TX }>;
 pub type PioCommon<'a> = pio::Common<'a, PIO1>;
 pub type PioPin<'a> = pio::Pin<'a, PIO1>;
 
 struct SidesComms<'a, W: Sized + Hardware> {
+    /// Protocol to communicate with the other side
     protocol: SideProtocol<W>,
-
-    /// Buffer of events to sent to the other half of the keyboard
-    queued_buffer: [Option<Event>; QUEUE_SIZE],
-    /// Number of queued events
-    queued: usize,
-    /// Next position in the queued buffer
-    next_queued: usize,
-
     /// State machine to receive events
     rx_sm: SmRx<'a>,
     /// Status LED
@@ -137,9 +127,6 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
     ) -> Self {
         Self {
             protocol: SideProtocol::new(sender_hw, name),
-            queued_buffer: [None; QUEUE_SIZE],
-            queued: 0,
-            next_queued: 0,
             rx_sm,
             status_led,
         }
