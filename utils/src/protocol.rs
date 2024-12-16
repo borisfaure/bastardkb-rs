@@ -75,7 +75,10 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     }
 
     /// Queue an event to be sent
-    pub async fn queue_event(&mut self, _event: Event) {}
+    pub async fn queue_event(&mut self, event: Event) {
+        // TODO: really queue events when retransmits are ongoing
+        self.send_event(event).await;
+    }
 
     /// On invalid sequence id
     async fn on_invalid_sid(&mut self, sid: Sid) {
