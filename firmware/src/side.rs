@@ -49,6 +49,17 @@ struct SidesComms<'a, W: Sized + Hardware> {
 struct SenderHw<'a> {
     /// State machine to send events
     tx: SmTx<'a>,
+    // error state
+    on_error: bool,
+}
+
+impl<'a> SenderHw<'a> {
+    pub fn new(tx: SmTx<'a>) -> Self {
+        Self {
+            tx,
+            on_error: false,
+        }
+    }
 }
 
 impl<'a> Hardware for SenderHw<'a> {
@@ -94,6 +105,24 @@ impl<'a> Hardware for SenderHw<'a> {
             _ => {
                 defmt::warn!("Unhandled event {:?}", defmt::Debug2Format(&event));
             }
+        }
+    }
+
+    // Set error state
+    async fn set_error_state(&mut self, error: bool) {
+        if error && !self.on_error {
+            self.on_error = true;
+            if ANIM_CHANNEL.is_full() {
+                defmt::error!("Anim channel is full");
+            }
+            ANIM_CHANNEL.send(AnimCommand::Error).await;
+        }
+        if !error && self.on_error {
+            self.on_error = false;
+            if ANIM_CHANNEL.is_full() {
+                defmt::error!("Anim channel is full");
+            }
+            ANIM_CHANNEL.send(AnimCommand::Fixed).await;
         }
     }
 }
@@ -245,7 +274,7 @@ pub async fn full_duplex_comm<'a>(
     let rx_sm = task_rx(&mut pio_common, sm1, &mut pin_rx);
 
     let name = if is_right { "Right" } else { "Left" };
-    let sender_hw = SenderHw { tx: tx_sm };
+    let sender_hw = SenderHw::new(tx_sm);
     let mut sides_comms: SidesComms<'_, SenderHw<'_>> =
         SidesComms::new(name, sender_hw, rx_sm, status_led);
     sides_comms.run().await;
