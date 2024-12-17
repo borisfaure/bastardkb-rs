@@ -93,26 +93,26 @@ impl RGB8 {
 const INDEXED_COLORS: [RGB8; 11] = [
     // No color
     RGB8::default(),
-    // 1/ orange #fa6800, RAISE
-    RGB8::new(250, 104, 0),
-    // 2/ green #a4c400, LOWER
-    RGB8::new(109, 135, 100),
-    // 3/ purple #99006e, MISC
-    RGB8::new(153, 0, 110),
-    // 4/ blue #7ea6e0, NUMBERS
-    RGB8::new(126, 166, 224),
-    // 5/ red #b85450, TMUX
-    RGB8::new(184, 84, 80),
-    // 6/ gray #666666, GAMING
-    RGB8::new(102, 102, 102),
-    // 7/ beige #e7e7e7, CAPS
-    RGB8::new(231, 231, 231),
-    // 9/ yellow #f3e5ab, QWERTY
-    RGB8::new(243, 229, 171),
-    // 10/ Dark red #7f0000
-    RGB8::new(127, 0, 0),
-    // 11/ orange #dd571c , ERROR
-    RGB8::new(221, 87, 28),
+    // 1/ orange, RAISE
+    RGB8::new(0x40, 0x10, 0x00),
+    // 2/ green, LOWER
+    RGB8::new(0x00, 0x40, 0x00),
+    // 3/ purple, MISC
+    RGB8::new(0x40, 0, 0x10),
+    // 4/ blue, NUMBERS
+    RGB8::new(0x00, 0x00, 0x40),
+    // 5/ red, TMUX
+    RGB8::new(0x07, 0x00, 0x00),
+    // 6/ gray, GAMING
+    RGB8::new(0x07, 0x07, 0x07),
+    // 7/ beige, CAPS
+    RGB8::new(0x0f, 0x0f, 0x00),
+    // 8/ yellow, QWERTY
+    RGB8::new(0x40, 0x30, 0x00),
+    // 9/ dark red, MOUSE
+    RGB8::new(0x40, 0, 0),
+    // 10/ white, ERROR
+    RGB8::new(0xff, 0xff, 0xff),
 ];
 /// Default color: red
 const DEFAULT_COLOR_INDEX: u8 = 9;
