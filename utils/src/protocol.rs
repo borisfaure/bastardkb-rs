@@ -1,5 +1,6 @@
 //! Protocol between the halves.
 
+#[cfg(feature = "log-protocol")]
 use crate::log::*;
 use crate::serde::{deserialize, serialize, Event, Message};
 use crate::sid::{CircBuf, Sid};
@@ -63,6 +64,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     /// Send an event
     async fn send_event(&mut self, event: Event) {
         let msg = serialize(event, self.next_tx_sid).unwrap();
+        #[cfg(feature = "log-protocol")]
         info!(
             "[{}] Sending [{}] Event: {}",
             self.name,
@@ -85,12 +87,14 @@ impl<W: Sized + Hardware> SideProtocol<W> {
 
     /// On invalid sequence id
     async fn on_invalid_sid(&mut self, msg: Message, sid: Sid) {
+        #[cfg(feature = "log-protocol")]
         warn!(
             "[{}] Invalid sid received: expected {}, got {}",
             self.name, self.next_rx_sid, sid
         );
         if let Some(last_msg) = self.last_msg {
             if last_msg == msg {
+                #[cfg(feature = "log-protocol")]
                 warn!("[{}] Last message was the same, skip it", self.name);
                 return;
             }
@@ -106,6 +110,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
 
     //. Send an ACK for the given sequence id
     async fn acknowledge(&mut self, sid: Sid) {
+        #[cfg(feature = "log-protocol")]
         info!("[{}] Sending ACK for sid {}", self.name, sid);
         self.send_event(Event::Ack(sid)).await;
     }
@@ -118,6 +123,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
 
     /// On Ping event: respond with a ack
     async fn on_ping(&mut self, sid: Sid) {
+        #[cfg(feature = "log-protocol")]
         info!("[{}] Acknowledge Ping of Sid {}", self.name, sid);
         self.acknowledge(sid).await;
     }
@@ -127,6 +133,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     /// Send the event again with the same sequence id
     async fn on_retansmit(&mut self, sid: Sid) {
         if let Some(msg) = self.sent.get(sid) {
+            #[cfg(feature = "log-protocol")]
             info!(
                 "[{}] Retransmitting [{}] Event: {}",
                 self.name,
@@ -135,6 +142,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
             );
             self.hw.send(msg).await;
         } else {
+            #[cfg(feature = "log-protocol")]
             warn!("[{}] No event to retransmit for sid {}", self.name, sid);
         }
     }
@@ -165,6 +173,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
             for idx in Sid::new(0).iter(Sid::new(0)) {
                 if let Some(s) = self.retransmit.get(idx) {
                     if s == sid {
+                        #[cfg(feature = "log-protocol")]
                         info!(
                             "[{}] Removing retransmit request for sid {} at {}",
                             self.name, sid, idx
@@ -192,6 +201,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     pub async fn receive(&mut self, msg: Message) {
         match deserialize(msg) {
             Ok((event, sid)) => {
+                #[cfg(feature = "log-protocol")]
                 info!(
                     "[{}] Received [{}/{}] Event: {}",
                     self.name,
@@ -207,6 +217,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                 }
             }
             Err(_) => {
+                #[cfg(feature = "log-protocol")]
                 warn!("[{}] Unable to deserialize event: 0x{:04x}", self.name, msg);
                 self.hw.wait_a_bit().await;
                 self.send_event(Event::Retransmit(self.next_rx_sid)).await;
