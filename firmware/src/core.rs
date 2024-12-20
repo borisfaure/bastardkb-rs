@@ -55,6 +55,7 @@ pub enum CustomEvent {
 }
 
 /// Debug tick counter: every 5s
+#[cfg(feature = "debug_tick")]
 const TICK_DEBUG: usize = 5000;
 /// Side Ping message, every 3s
 const TICK_SIDE_PING: usize = 3000;
@@ -72,6 +73,7 @@ pub struct Core<'a> {
     /// HID mouse writer
     hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>,
     /// Debug tick counter
+    #[cfg(feature = "debug_tick")]
     debug_tick: usize,
     /// Side Ping tick counter
     side_ping_tick: usize,
@@ -88,6 +90,7 @@ impl<'a> Core<'a> {
             kb_report: KeyboardReport::default(),
             mouse: MouseHandler::new(),
             hid_mouse_writer,
+            #[cfg(feature = "debug_tick")]
             debug_tick: TICK_DEBUG,
             side_ping_tick: TICK_SIDE_PING,
             is_right,
@@ -114,13 +117,16 @@ impl<'a> Core<'a> {
 
     /// Process the state of the keyboard and mouse
     async fn tick(&mut self) {
-        self.debug_tick -= 1;
-        if self.debug_tick == 0 {
-            defmt::info!(
-                "Tick every {}s",
-                TICK_DEBUG / 1000 / REFRESH_RATE_MS as usize
-            );
-            self.debug_tick = TICK_DEBUG;
+        #[cfg(feature = "debug_tick")]
+        {
+            self.debug_tick -= 1;
+            if self.debug_tick == 0 {
+                defmt::info!(
+                    "Tick every {}s",
+                    TICK_DEBUG / 1000 / REFRESH_RATE_MS as usize
+                );
+                self.debug_tick = TICK_DEBUG;
+            }
         }
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
