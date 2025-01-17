@@ -13,15 +13,15 @@ default = ["keymap_borisfaure"]
 
 [dependencies]
 utils = {path = "../utils", features = ["defmt"]}
-embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
-embassy-sync = { git = "https://github.com/embassy-rs/embassy", features = ["defmt"] }
-embassy-executor = { git = "https://github.com/embassy-rs/embassy", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
-embassy-time = { git = "https://github.com/embassy-rs/embassy", features = ["defmt", "defmt-timestamp-uptime"] }
-embassy-rp = { git = "https://github.com/embassy-rs/embassy", features = ["rt", "defmt", "time-driver", "critical-section-impl", "rp2040",
+embassy-embedded-hal = { version = "0.3", features = ["defmt"] }
+embassy-sync = { version = "0.6", features = ["defmt"] }
+embassy-executor = { version = "0.7", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
+embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-rp = { version = "0.3", features = ["rt", "defmt", "time-driver", "critical-section-impl", "rp2040",
 "rom-func-cache", "intrinsics", "rom-v2-intrinsics"] }
-embassy-usb = { git = "https://github.com/embassy-rs/embassy",features = ["defmt"] }
-embassy-futures = { git = "https://github.com/embassy-rs/embassy"}
-embassy-usb-logger = { git = "https://github.com/embassy-rs/embassy"}
+embassy-usb = { version = "0.4",features = ["defmt"] }
+embassy-futures = "0.1"
+embassy-usb-logger = "0.4"
 
 pio = "0.2"
 pio-proc = "0.2"
