@@ -52,7 +52,7 @@ impl<'a> SenderHw<'a> {
     }
 }
 
-impl<'a> Hardware for SenderHw<'a> {
+impl Hardware for SenderHw<'_> {
     async fn send(&mut self, msg: u32) {
         self.tx.tx().wait_push(msg).await;
     }
