@@ -16,6 +16,11 @@ EXAMPLES=(
     [1]="blinky_led_liatris"
     [2]="pio_comms"
 )
+declare -A MODELS
+MODELS=(
+    [0]="dilemma"
+    [1]="cnano"
+)
 
 
 run_doc() {
@@ -24,9 +29,12 @@ run_doc() {
     do
         cargo doc --example "$EXAMPLE"
     done
-    for KEYMAP in "${KEYMAPS[@]}"
+    for MODEL in "${MODELS[@]}"
     do
-        cargo doc --no-default-features --features "$KEYMAP"
+        for KEYMAP in "${KEYMAPS[@]}"
+        do
+            cargo doc --no-default-features --features "${KEYMAP},${MODEL}"
+        done
     done
 }
 
@@ -41,9 +49,12 @@ run_clippy() {
     do
         cargo clippy --example "$EXAMPLE" -- -D warnings
     done
-    for KEYMAP in "${KEYMAPS[@]}"
+    for MODEL in "${MODELS[@]}"
     do
-        cargo clippy --no-default-features --features "$KEYMAP" -- -D warnings
+        for KEYMAP in "${KEYMAPS[@]}"
+        do
+            cargo clippy --no-default-features --features "${KEYMAP},${MODEL}" -- -D warnings
+        done
     done
 }
 
@@ -52,9 +63,12 @@ run_check() {
     do
         cargo check --example "$EXAMPLE"
     done
-    for KEYMAP in "${KEYMAPS[@]}"
+    for MODEL in "${MODELS[@]}"
     do
-        cargo check --no-default-features --features "$KEYMAP"
+        for KEYMAP in "${KEYMAPS[@]}"
+        do
+            cargo check --no-default-features --features "${KEYMAP},${MODEL}"
+        done
     done
 }
 
@@ -68,9 +82,12 @@ run_build() {
     do
         cargo build --example "$EXAMPLE"
     done
-    for KEYMAP in "${KEYMAPS[@]}"
+    for MODEL in "${MODELS[@]}"
     do
-        cargo build --no-default-features --features "$KEYMAP"
+        for KEYMAP in "${KEYMAPS[@]}"
+        do
+            cargo build --no-default-features --features "${KEYMAP},${MODEL}"
+        done
     done
 }
 
@@ -80,9 +97,12 @@ run_build_release() {
     do
         cargo build --release --example "$EXAMPLE"
     done
-    for KEYMAP in "${KEYMAPS[@]}"
+    for MODEL in "${MODELS[@]}"
     do
-        cargo build --release --no-default-features --features "$KEYMAP"
+        for KEYMAP in "${KEYMAPS[@]}"
+        do
+            cargo build --release --no-default-features --features "${KEYMAP},${MODEL}"
+        done
     done
 }
 

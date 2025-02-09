@@ -9,7 +9,9 @@ keymap_basic = []
 keymap_borisfaure = []
 keymap_test = []
 debug_tick = []
-default = ["keymap_borisfaure"]
+cnano = []
+dilemma = []
+default = ["keymap_borisfaure", "dilemma"]
 
 [dependencies]
 utils = {path = "../utils", features = ["defmt"]}

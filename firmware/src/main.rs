@@ -55,6 +55,11 @@ compile_error!(
     "Either feature \"keymap_basic\" or \"keymap_borisfaure\" or \"keymap_test\" must be enabled."
 );
 
+#[cfg(not(any(feature = "dilemma", feature = "cnano",)))]
+compile_error!("Either feature \"cnano\" or \"dilemma\" must be enabled.");
+#[cfg(all(feature = "dilemma", feature = "cnano",))]
+compile_error!("Only one of \"cnano\" or \"dilemma\" can be enabled at a time.");
+
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => USBInterruptHandler<USB>;
 });

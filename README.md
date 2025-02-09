@@ -1,10 +1,12 @@
-[![CI](https://github.com/borisfaure/cnano-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/borisfaure/cnano-rs/actions/workflows/ci.yml)
+[![CI](https://github.com/borisfaure/bastardkb-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/borisfaure/bastardkb-rs/actions/workflows/ci.yml)
 
-# Rust Firmware for the Charybdis Nano keyboard
+# Rust Firmware for the Dilemma and the Charybdis Nano keyboard
 
 This firmware written in Rust is targetted for the
-[Charybdis Nano keyboard](https://bastardkb.com/product/charybdis-nano-kit/).
-It uses the [Elite-C Holder](https://github.com/Bastardkb/Elite-C-holder) with
+[Dilemma keyboard](https://bastardkb.com/product/dilemma/),
+and the [Charybdis Nano keyboard](https://bastardkb.com/product/charybdis-nano-kit/).
+
+For the Charybdis Nano keyboard, it uses the [Elite-C Holder](https://github.com/Bastardkb/Elite-C-holder) with
 a [Liatris Microcontroller](https://splitkb.com/products/liatris).
 
 Two modifications have been made on the Elite-C Holder:
@@ -29,6 +31,7 @@ The firmware is based on the [Keyberon library](https://github.com/TeXitoi/keybe
 - Sequences
 - CapsLock & NumLock
 - RGB underglow on per key basis
+- Trackball support for the Charybdis Nano keyboard
 - Switch to bootloader mode to easily upgrade firmware by pressing a key combination
 
 ## On CapsLock & NumLock support
