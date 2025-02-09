@@ -93,6 +93,21 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
     }
 }
 
+/// Input a value 0 to 255 to get a color value
+/// The colours are a transition r - g - b - back to r.
+fn wheel(mut wheel_pos: u8) -> RGB8 {
+    wheel_pos = 255 - wheel_pos;
+    if wheel_pos < 85 {
+        return RGB8::new(255 - wheel_pos * 3, 0, wheel_pos * 3);
+    }
+    if wheel_pos < 170 {
+        wheel_pos -= 85;
+        return RGB8::new(0, wheel_pos * 3, 255 - wheel_pos * 3);
+    }
+    wheel_pos -= 170;
+    RGB8::new(wheel_pos * 3, 255 - wheel_pos * 3, 0)
+}
+
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     info!("Start");
@@ -105,25 +120,27 @@ async fn main(_spawner: Spawner) {
     info!("led off!");
     led.set_high();
 
-    // This is the number of leds in the string. Helpfully, the sparkfun thing plus and adafruit
-    // feather boards for the 2040 both have one built in.
-    const NUM_LEDS: usize = 18;
+    /* 18 leds for the cnano,
+     * 18 leds for the dilemma underglow + 18 leds for rgb under each key */
+    const NUM_LEDS: usize = 36;
     let mut data = [RGB8::default(); NUM_LEDS];
 
-    // Common neopixel pins:
-    // Thing plus: 8
-    // Adafruit Feather: 16;  Adafruit Feather+RFM95: 4
-    let mut ws2812 = Ws2812::new(&mut common, sm0, p.DMA_CH0, p.PIN_0);
+    /* pin 0 for the cnano,
+     * pin 10 for the dilemma underglow
+     */
+    let pin = p.PIN_10;
+    let mut ws2812 = Ws2812::new(&mut common, sm0, p.DMA_CH0, pin);
 
-    let mut ticker = Ticker::every(Duration::from_millis(100));
-    let mut r = 0_u8;
+    let mut ticker = Ticker::every(Duration::from_millis(10));
     loop {
-        for led in data.iter_mut().take(NUM_LEDS) {
-            *led = RGB8::new(r, 0, 0);
-        }
-        r = r.wrapping_add(1);
-        ws2812.write(&data).await;
+        for j in 0..(256 * 5) {
+            for i in 0..NUM_LEDS {
+                data[i] = wheel((((i * 256) as u16 / NUM_LEDS as u16 + j as u16) & 255) as u8);
+                debug!("R: {} G: {} B: {}", data[i].r, data[i].g, data[i].b);
+            }
+            ws2812.write(&data).await;
 
-        ticker.next().await;
+            ticker.next().await;
+        }
     }
 }
