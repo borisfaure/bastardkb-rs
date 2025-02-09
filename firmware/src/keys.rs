@@ -67,7 +67,13 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
                 e.transform(|r, c| {
                     if r == 3 {
                         match c {
+                            #[cfg(feature = "cnano")]
                             0 => (3, 5),
+                            #[cfg(feature = "dilemma")]
+                            0 => (3, 6),
+                            #[cfg(feature = "dilemma")]
+                            1 => (3, 5),
+                            #[cfg(feature = "cnano")]
                             2 => (3, 6),
                             _ => panic!("Invalid key {:?}", (r, c)),
                         }
@@ -81,8 +87,15 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
                 e.transform(|r, c| {
                     if r == 3 {
                         match c {
+                            #[cfg(feature = "cnano")]
                             0 => (3, 4),
+                            #[cfg(feature = "dilemma")]
+                            0 => (3, 3),
+                            #[cfg(feature = "dilemma")]
+                            1 => (3, 4),
+                            #[cfg(any(feature = "cnano", feature = "dilemma"))]
                             2 => (3, 2),
+                            #[cfg(feature = "cnano")]
                             3 => (3, 3),
                             _ => panic!("Invalid key {:?}", (r, c)),
                         }

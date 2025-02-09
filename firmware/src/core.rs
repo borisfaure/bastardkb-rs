@@ -159,14 +159,17 @@ impl<'a> Core<'a> {
         }
 
         // Send a Ping message to the other side every Xs
-        self.side_ping_tick -= 1;
-        if self.side_ping_tick == 0 && self.is_right {
-            defmt::info!("Sending Ping");
-            if SIDE_CHANNEL.is_full() {
-                defmt::error!("Side channel is full");
+        #[cfg(feature = "cnano")]
+        {
+            self.side_ping_tick -= 1;
+            if self.side_ping_tick == 0 && self.is_right {
+                defmt::info!("Sending Ping");
+                if SIDE_CHANNEL.is_full() {
+                    defmt::error!("Side channel is full");
+                }
+                SIDE_CHANNEL.send(Event::Ping).await;
+                self.side_ping_tick = TICK_SIDE_PING;
             }
-            SIDE_CHANNEL.send(Event::Ping).await;
-            self.side_ping_tick = TICK_SIDE_PING;
         }
     }
 

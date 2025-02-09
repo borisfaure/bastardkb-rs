@@ -78,7 +78,10 @@ const VID: u16 = 0x16c0;
 const PID: u16 = 0x27db;
 
 /// USB Product
+#[cfg(feature = "cnano")]
 const PRODUCT: &str = "Charybdis Nano keyboard";
+#[cfg(feature = "dilemma")]
+const PRODUCT: &str = "Dilemma keyboard";
 /// USB Manufacturer
 const MANUFACTURER: &str = "Bastard Keyboards & Boris Faure";
 
@@ -136,7 +139,10 @@ async fn main(spawner: Spawner) {
     builder.handler(&mut device_handler);
 
     defmt::info!("Detecting side...");
+    #[cfg(feature = "cnano")]
     let is_right = device::is_right(Input::new(p.PIN_15, Pull::Up));
+    #[cfg(feature = "dilemma")]
+    let is_right = device::is_right(Input::new(p.PIN_29, Pull::Up));
 
     // Create classes on the builder.
     let hidkb_config = HidConfig {
@@ -168,26 +174,48 @@ async fn main(spawner: Spawner) {
     // Run the USB device.
     let usb_fut = usb.run();
 
+    #[cfg(feature = "cnano")]
     let rows = [
         Input::new(p.PIN_26, Pull::Up), // R2
         Input::new(p.PIN_5, Pull::Up),  // R3
         Input::new(p.PIN_4, Pull::Up),  // R4
         Input::new(p.PIN_9, Pull::Up),  // R5
     ];
+    #[cfg(feature = "dilemma")]
+    let rows = [
+        Input::new(p.PIN_4, Pull::Up),  // R2
+        Input::new(p.PIN_5, Pull::Up),  // R3
+        Input::new(p.PIN_27, Pull::Up), // R4
+        Input::new(p.PIN_26, Pull::Up), // R5
+    ];
+
+    #[cfg(feature = "cnano")]
     let cols = [
-        Output::new(p.PIN_28, Level::High), // C2
-        Output::new(p.PIN_21, Level::High), // C3
-        Output::new(p.PIN_6, Level::High),  // C4
-        Output::new(p.PIN_7, Level::High),  // C5
-        Output::new(p.PIN_8, Level::High),  // C6
+        Output::new(p.PIN_8, Level::High),  // C2
+        Output::new(p.PIN_9, Level::High),  // C3
+        Output::new(p.PIN_7, Level::High),  // C4
+        Output::new(p.PIN_6, Level::High),  // C5
+        Output::new(p.PIN_28, Level::High), // C6
+    ];
+    #[cfg(feature = "dilemma")]
+    let cols = [
+        Output::new(p.PIN_8, Level::High),  // C2
+        Output::new(p.PIN_9, Level::High),  // C3
+        Output::new(p.PIN_7, Level::High),  // C4
+        Output::new(p.PIN_6, Level::High),  // C5
+        Output::new(p.PIN_28, Level::High), // C6
     ];
 
     let pio1 = Pio::new(p.PIO1, PioIrq1);
     let matrix = Matrix::new(rows, cols);
+    #[cfg(feature = "cnano")]
     let mut status_led = Output::new(p.PIN_24, Level::Low);
+    #[cfg(feature = "dilemma")]
+    let mut status_led = Output::new(p.PIN_17, Level::Low);
     // Disable the status LED on startup
     status_led.set_high();
 
+    #[cfg(feature = "cnano")]
     let full_duplex_fut = side::full_duplex_comm(
         pio1.common,
         pio1.sm0,
@@ -203,6 +231,7 @@ async fn main(spawner: Spawner) {
     let layout_fut = core.run();
     let matrix_fut = matrix_scanner(matrix, is_right);
 
+    #[cfg(feature = "cnano")]
     if is_right {
         let mut ball = {
             let sclk = p.PIN_22; // B1
@@ -236,6 +265,16 @@ async fn main(spawner: Spawner) {
         defmt::info!("let's go!");
         future::join3(
             future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
+            future::join(hid_kb_reader_fut, hid_kb_writer_fut),
+            future::join(matrix_fut, layout_fut),
+        )
+        .await;
+    }
+    #[cfg(feature = "dilemma")]
+    {
+        defmt::info!("let's go!");
+        future::join3(
+            future::join(usb_fut, rgb_leds_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut),
             future::join(matrix_fut, layout_fut),
         )
