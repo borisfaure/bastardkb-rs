@@ -191,11 +191,11 @@ async fn main(spawner: Spawner) {
 
     #[cfg(feature = "cnano")]
     let cols = [
-        Output::new(p.PIN_8, Level::High),  // C2
-        Output::new(p.PIN_9, Level::High),  // C3
-        Output::new(p.PIN_7, Level::High),  // C4
-        Output::new(p.PIN_6, Level::High),  // C5
-        Output::new(p.PIN_28, Level::High), // C6
+        Output::new(p.PIN_28, Level::High), // C2
+        Output::new(p.PIN_21, Level::High), // C3
+        Output::new(p.PIN_6, Level::High),  // C4
+        Output::new(p.PIN_7, Level::High),  // C5
+        Output::new(p.PIN_8, Level::High),  // C6
     ];
     #[cfg(feature = "dilemma")]
     let cols = [
