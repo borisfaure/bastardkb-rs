@@ -10,6 +10,8 @@ use core::future;
 pub trait Hardware {
     /// Send a message
     fn send(&mut self, msg: Message) -> impl future::Future<Output = ()> + Send;
+    /// Receive a message
+    fn receive(&mut self) -> impl future::Future<Output = Message> + Send;
     /// Wait a bit
     fn wait_a_bit(&mut self) -> impl future::Future<Output = ()> + Send;
 
@@ -43,7 +45,7 @@ pub struct SideProtocol<W: Sized + Hardware> {
     rx_errors: CircBuf<()>,
 
     /// Hardware
-    hw: W,
+    pub hw: W,
 }
 
 impl<W: Sized + Hardware> SideProtocol<W> {
@@ -198,7 +200,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     }
 
     /// Receive a message
-    pub async fn receive(&mut self, msg: Message) {
+    pub async fn on_receive(&mut self, msg: Message) {
         match deserialize(msg) {
             Ok((event, sid)) => {
                 #[cfg(feature = "log-protocol")]
@@ -230,6 +232,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
 mod tests {
     use super::*;
     use arraydeque::ArrayDeque;
+    use log::error;
     use lovely_env_logger;
 
     struct MockHardware {
@@ -242,6 +245,9 @@ mod tests {
             self.msg_sent += 1;
             self.queue.push_front(msg).unwrap();
             async {}
+        }
+        fn receive(&mut self) -> impl future::Future<Output = Message> + Send {
+            async { 0x1234 }
         }
         fn wait_a_bit(&mut self) -> impl future::Future<Output = ()> + Send {
             async {}
@@ -271,10 +277,10 @@ mod tests {
     ) {
         loop {
             if let Some(msg) = left.hw.queue.pop_back() {
-                right.receive(msg).await;
+                right.on_receive(msg).await;
             }
             if let Some(msg) = right.hw.queue.pop_back() {
-                left.receive(msg).await;
+                left.on_receive(msg).await;
             }
             if right.hw.queue.is_empty() && left.hw.queue.is_empty() {
                 break;
@@ -288,7 +294,7 @@ mod tests {
             if let Some(msg) = side.sent.get(i) {
                 let (event, _) = deserialize(msg).unwrap();
                 if !event.is_ack() {
-                    error!("[{}/{}] Not acked: {}", side.name, i, Debug2Format(&event));
+                    error!("[{}/{}] Not acked: {:?}", side.name, i, event);
                     return false;
                 }
             }
@@ -307,9 +313,9 @@ mod tests {
         // Send a message from right to left
         right.send_event(Event::Ping).await;
         let msg = right.hw.queue.pop_back().unwrap();
-        left.receive(msg).await;
+        left.on_receive(msg).await;
         let msg = left.hw.queue.pop_back().unwrap();
-        right.receive(msg).await;
+        right.on_receive(msg).await;
         assert!(right.sent.is_empty());
     }
 
