@@ -17,7 +17,7 @@ use embassy_futures::{
 use embassy_rp::{
     bind_interrupts, clocks,
     gpio::{Drive, Input, Level, Output, Pull},
-    peripherals::PIO1,
+    peripherals::{PIN_1, PIO1},
     pio::{
         self, Common, Direction, FifoJoin, InterruptHandler as PioInterruptHandler, Pio,
         ShiftDirection, StateMachine,
@@ -201,29 +201,26 @@ const TEST_DATA: [u32; 24] = [
     T0, T1, T3, T7, TA, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, TA, TB, TC, TD, TE, TF, B, C, M,
 ];
 
-#[embassy_executor::main]
-async fn main(_spawner: Spawner) {
-    defmt::info!("Hello there!");
-
-    let p = embassy_rp::init(Default::default());
-    let pio1 = Pio::new(p.PIO1, PioIrq1);
-    let mut pio1_common = pio1.common;
-
-    let is_right = Input::new(p.PIN_29, Pull::Up).is_high();
-
-    let mut pin = pio1_common.make_pio_pin(p.PIN_1);
+async fn ping_pong<'a>(
+    mut pio1_common: PioCommon<'a>,
+    sm0: SmTx<'a>,
+    sm1: SmRx<'a>,
+    gpio_pin1: PIN_1,
+    status_led: &mut Output<'static>,
+    is_right: bool,
+) {
+    let mut pin = pio1_common.make_pio_pin(gpio_pin1);
     pin.set_pull(Pull::Up);
 
-    let mut tx_sm = task_tx(&mut pio1_common, pio1.sm0, &mut pin);
-    let mut rx_sm = task_rx(&mut pio1_common, pio1.sm1, &pin);
+    let mut tx_sm = task_tx(&mut pio1_common, sm0, &mut pin);
+    let mut rx_sm = task_rx(&mut pio1_common, sm1, &pin);
 
     enter_rx(&mut tx_sm, &mut rx_sm, &mut pin).await;
 
-    let mut led = Output::new(p.PIN_17, Level::Low);
     let mut ticker = Ticker::every(Duration::from_millis(200));
     let mut idx = 0;
     let mut state = false;
-    led.set_high();
+    status_led.set_high();
     let mut num: u32 = 0;
     let mut errors: u32 = 0;
     loop {
@@ -247,9 +244,9 @@ async fn main(_spawner: Spawner) {
             }
             select::Either::Second(x) => {
                 if state {
-                    led.set_high();
+                    status_led.set_high();
                 } else {
-                    led.set_low();
+                    status_led.set_low();
                 }
                 state = !state;
                 defmt::info!("[{}] got byte: 0b{:032b} 0x{:04x}", num, x, x);
@@ -266,4 +263,24 @@ async fn main(_spawner: Spawner) {
             }
         }
     }
+}
+
+#[embassy_executor::main]
+async fn main(_spawner: Spawner) {
+    defmt::info!("Hello there!");
+
+    let p = embassy_rp::init(Default::default());
+    let pio1 = Pio::new(p.PIO1, PioIrq1);
+
+    let mut status_led = Output::new(p.PIN_17, Level::Low);
+    let is_right = Input::new(p.PIN_29, Pull::Up).is_high();
+    ping_pong(
+        pio1.common,
+        pio1.sm0,
+        pio1.sm1,
+        p.PIN_1,
+        &mut status_led,
+        is_right,
+    )
+    .await;
 }
