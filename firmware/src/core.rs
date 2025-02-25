@@ -1,5 +1,6 @@
 use crate::hid::{KeyboardReport, HID_KB_CHANNEL};
 use crate::mouse::MouseHandler;
+#[cfg(feature = "cnano")]
 use crate::pmw3360::{SensorCommand, SENSOR_CMD_CHANNEL};
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use crate::side::SIDE_CHANNEL;
@@ -45,8 +46,10 @@ pub enum CustomEvent {
     /// Ball is wheel
     BallIsWheel,
     /// Increase sensor CPI
+    #[cfg(feature = "cnano")]
     IncreaseCpi,
     /// Decrease sensor CPI
+    #[cfg(feature = "cnano")]
     DecreaseCpi,
     /// Next Animation of the RGB LEDs
     NextLedAnimation,
@@ -159,10 +162,9 @@ impl<'a> Core<'a> {
         }
 
         // Send a Ping message to the other side every Xs
-        #[cfg(feature = "cnano")]
-        {
+        if self.is_right {
             self.side_ping_tick -= 1;
-            if self.side_ping_tick == 0 && self.is_right {
+            if self.side_ping_tick == 0 {
                 defmt::info!("Sending Ping");
                 if SIDE_CHANNEL.is_full() {
                     defmt::error!("Side channel is full");
@@ -200,19 +202,23 @@ impl<'a> Core<'a> {
             KbCustomEvent::Release(CustomEvent::BallIsWheel) => {
                 self.mouse.on_ball_is_wheel(false);
             }
+            #[cfg(feature = "cnano")]
             KbCustomEvent::Press(CustomEvent::IncreaseCpi) => {
                 if SENSOR_CMD_CHANNEL.is_full() {
                     defmt::error!("Sensor channel is full");
                 }
                 SENSOR_CMD_CHANNEL.send(SensorCommand::IncreaseCpi).await;
             }
+            #[cfg(feature = "cnano")]
             KbCustomEvent::Release(CustomEvent::IncreaseCpi) => {}
+            #[cfg(feature = "cnano")]
             KbCustomEvent::Press(CustomEvent::DecreaseCpi) => {
                 if SENSOR_CMD_CHANNEL.is_full() {
                     defmt::error!("Sensor channel is full");
                 }
                 SENSOR_CMD_CHANNEL.send(SensorCommand::DecreaseCpi).await;
             }
+            #[cfg(feature = "cnano")]
             KbCustomEvent::Release(CustomEvent::DecreaseCpi) => {}
 
             KbCustomEvent::Press(CustomEvent::NextLedAnimation) => {

@@ -3,12 +3,14 @@
 
 use crate::hid::{hid_kb_writer_handler, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR};
 use crate::keys::{matrix_scanner, Matrix};
+#[cfg(feature = "cnano")]
 use crate::pmw3360::Pmw3360;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIO0, PIO1, USB};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
+#[cfg(feature = "cnano")]
 use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_rp::usb::{Driver, InterruptHandler as USBInterruptHandler};
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, HidWriter, State};
@@ -28,6 +30,7 @@ mod keys;
 /// Mouse handling
 mod mouse;
 /// PMW3360 sensor
+#[cfg(feature = "cnano")]
 mod pmw3360;
 /// RGB LEDs
 mod rgb_leds;
@@ -206,7 +209,6 @@ async fn main(spawner: Spawner) {
         Output::new(p.PIN_28, Level::High), // C6
     ];
 
-    let pio1 = Pio::new(p.PIO1, PioIrq1);
     let matrix = Matrix::new(rows, cols);
     #[cfg(feature = "cnano")]
     let mut status_led = Output::new(p.PIN_24, Level::Low);
@@ -226,7 +228,16 @@ async fn main(spawner: Spawner) {
         is_right,
     );
     let pio0 = Pio::new(p.PIO0, PioIrq0);
-    let rgb_leds_fut = rgb_leds::run(pio0.common, pio0.sm0, p.DMA_CH0, p.PIN_0, is_right);
+    let rgb_leds_fut = rgb_leds::run(
+        pio0.common,
+        pio0.sm0,
+        p.DMA_CH0,
+        #[cfg(feature = "cnano")]
+        p.PIN_0,
+        #[cfg(feature = "dilemma")]
+        p.PIN_10,
+        is_right,
+    );
     let mut core = Core::new(hid_mouse, is_right);
     let layout_fut = core.run();
     let matrix_fut = matrix_scanner(matrix, is_right);

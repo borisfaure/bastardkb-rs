@@ -320,9 +320,15 @@ const MWC: Action<CustomEvent> = Action::Custom(MouseWheelClick);
 const BIW: Action<CustomEvent> = Action::Custom(BallIsWheel);
 
 /// Increase CPI
+#[cfg(feature = "cnano")]
 const MINC: Action<CustomEvent> = Action::Custom(IncreaseCpi);
+#[cfg(feature = "dilemma")]
+const MINC: Action<CustomEvent> = Action::NoOp;
 /// Decrease CPI
+#[cfg(feature = "cnano")]
 const MDEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
+#[cfg(feature = "dilemma")]
+const MDEC: Action<CustomEvent> = Action::NoOp;
 
 /// RGB LED control
 const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
