@@ -6,10 +6,15 @@ const SID_MAX_U8: u8 = 31;
 
 /// Sequence id
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Sid {
     /// internal value
     v: u8,
+}
+#[cfg(feature = "defmt")]
+impl defmt::Format for Sid {
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(fmt, "{}", self.v);
+    }
 }
 impl Sid {
     /// Create a new sequence id
