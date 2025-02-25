@@ -49,8 +49,8 @@ impl Event {
     pub fn to_u16(&self, sid: Sid) -> Result<u16, Error> {
         let sid = (sid.as_u16()) << 11;
         let (tag, data) = match self {
-            Event::Noop => Ok((0b000, 0)),
-            Event::Ping => Ok((0b000, 0xff)),
+            Event::Noop => Ok((0b000, 0x33)),
+            Event::Ping => Ok((0b000, 0xcc)),
             Event::Retransmit(err) => Ok((0b001, err.as_u16())),
             Event::Ack(ack) => Ok((0b010, ack.as_u16())),
             Event::Press(r, c) if *r <= 3 && *c <= 9 => {
@@ -82,8 +82,8 @@ pub fn deserialize(bytes: Message) -> Result<(Event, Sid), Error> {
     let data = bytes & 0xff;
 
     match tag {
-        0b000 if data == 0x00 => Ok((Event::Noop, sid)),
-        0b000 if data == 0xff => Ok((Event::Ping, sid)),
+        0b000 if data == 0x33 => Ok((Event::Noop, sid)),
+        0b000 if data == 0xcc => Ok((Event::Ping, sid)),
         0b001 => Ok((Event::Retransmit(Sid::from_u32_lsb(data)), sid)),
         0b010 => Ok((Event::Ack(Sid::from_u32_lsb(data)), sid)),
         0b011 => Ok((Event::Press((data >> 4) as u8, (data & 0xf) as u8), sid)),
