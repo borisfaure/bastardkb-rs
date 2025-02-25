@@ -182,4 +182,16 @@ mod tests {
             assert_eq!(Err(Error::Deserialization), deserialize(bad_crc));
         }
     }
+
+    #[test]
+    fn test_de_full_zero() {
+        let msg: Message = 0x00000000;
+        assert_eq!(Err(Error::Deserialization), deserialize(msg));
+    }
+
+    #[test]
+    fn test_de_full_ones() {
+        let msg: Message = 0xffffffff;
+        assert_eq!(Err(Error::Deserialization), deserialize(msg));
+    }
 }
