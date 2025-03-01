@@ -217,13 +217,12 @@ async fn main(spawner: Spawner) {
     // Disable the status LED on startup
     status_led.set_high();
 
-    #[cfg(feature = "cnano")]
-    let full_duplex_fut = side::full_duplex_comm(
+    let pio1 = Pio::new(p.PIO1, PioIrq1);
+    let half_duplex_fut = side::half_duplex_comm(
         pio1.common,
         pio1.sm0,
         pio1.sm1,
         p.PIN_1,
-        p.PIN_29,
         &mut status_led,
         is_right,
     );
@@ -267,7 +266,7 @@ async fn main(spawner: Spawner) {
         let ball_sensor_fut = ball.run();
         defmt::info!("let's go!");
         future::join3(
-            future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
+            future::join3(usb_fut, half_duplex_fut, rgb_leds_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut),
             future::join3(matrix_fut, layout_fut, ball_sensor_fut),
         )
@@ -275,7 +274,7 @@ async fn main(spawner: Spawner) {
     } else {
         defmt::info!("let's go!");
         future::join3(
-            future::join3(usb_fut, full_duplex_fut, rgb_leds_fut),
+            future::join3(usb_fut, half_duplex_fut, rgb_leds_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut),
             future::join(matrix_fut, layout_fut),
         )
@@ -285,7 +284,7 @@ async fn main(spawner: Spawner) {
     {
         defmt::info!("let's go!");
         future::join3(
-            future::join(usb_fut, rgb_leds_fut),
+            future::join3(usb_fut, half_duplex_fut, rgb_leds_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut),
             future::join(matrix_fut, layout_fut),
         )
