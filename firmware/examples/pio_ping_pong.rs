@@ -25,6 +25,7 @@ use embassy_rp::{
 };
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::{traits::ToFixed, types::U56F8};
+use utils::protocol::Hardware;
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -40,66 +41,114 @@ type SmTx<'a> = StateMachine<'a, PIO1, { TX }>;
 type PioCommon<'a> = Common<'a, PIO1>;
 type PioPin<'a> = pio::Pin<'a, PIO1>;
 
-const SPEED: u64 = 460800;
+const SPEED: u64 = 460_800;
 
-async fn enter_rx<'a>(tx_sm: &mut SmTx<'a>, rx_sm: &mut SmRx<'a>, pin: &mut PioPin<'a>) {
-    // Wait for TX FIFO to empty
-    while !tx_sm.tx().empty() {
-        yield_now().await;
-    }
-
-    // Wait a bit after the last sent message
-    Timer::after(Duration::from_micros(1_000_000 / SPEED)).await;
-
-    // Disable TX state machine before manipulating TX pin
-    tx_sm.set_enable(false);
-
-    // Set minimal drive strength on TX pin to avoid interfering with RX
-    pin.set_drive_strength(Drive::_2mA);
-
-    // Set pin as input
-    rx_sm.set_pin_dirs(Direction::In, &[pin]);
-    tx_sm.set_pin_dirs(Direction::In, &[pin]);
-
-    // Ensure the pin is HIGH
-    rx_sm.set_pins(Level::High, &[pin]);
-    tx_sm.set_pins(Level::High, &[pin]);
-
-    // Restart RX state machine to prepare for transmission
-    rx_sm.restart();
-    // Enable RX state machine
-    // This allows it to start receiving data from the line
-    // while benefiting from the pull-up drive
-    rx_sm.set_enable(true);
+struct Hw<'a> {
+    /// State machine to send events
+    tx_sm: SmTx<'a>,
+    /// State machine to receive events
+    rx_sm: SmRx<'a>,
+    /// Pin used for communication
+    pin: PioPin<'a>,
+    // error state
+    on_error: bool,
 }
 
-fn enter_tx<'a>(tx_sm: &mut SmTx<'a>, rx_sm: &mut SmRx<'a>, pin: &mut PioPin<'a>) {
-    // Disable RX state machine to prevent receiving transmitted data
-    rx_sm.set_enable(false);
+impl<'a> Hw<'a> {
+    pub fn new(tx_sm: SmTx<'a>, rx_sm: SmRx<'a>, pin: PioPin<'a>) -> Self {
+        Self {
+            tx_sm,
+            rx_sm,
+            pin,
+            on_error: false,
+        }
+    }
 
-    // Increase drive strength for better signal integrity
-    pin.set_drive_strength(Drive::_12mA);
+    async fn enter_rx(&mut self) {
+        // Wait for TX FIFO to empty
+        while !self.tx_sm.tx().empty() {
+            yield_now().await;
+        }
 
-    // Set TX pin as output (to drive the line)
-    tx_sm.set_pin_dirs(Direction::Out, &[pin]);
-    rx_sm.set_pin_dirs(Direction::Out, &[pin]);
+        // Wait a bit after the last sent message
+        Timer::after(Duration::from_micros(1_000_000 / SPEED)).await;
 
-    // Set pin High
-    tx_sm.set_pins(Level::High, &[pin]);
-    rx_sm.set_pins(Level::High, &[pin]);
+        // Disable TX state machine before manipulating TX pin
+        self.tx_sm.set_enable(false);
 
-    // Restart TX state machine to prepare for transmission
-    tx_sm.restart();
+        // Set minimal drive strength on TX pin to avoid interfering with RX
+        self.pin.set_drive_strength(Drive::_2mA);
 
-    // Enable TX state machine
-    tx_sm.set_enable(true);
+        // Set pin as input
+        self.rx_sm.set_pin_dirs(Direction::In, &[&self.pin]);
+        self.tx_sm.set_pin_dirs(Direction::In, &[&self.pin]);
+
+        // Ensure the pin is HIGH
+        self.rx_sm.set_pins(Level::High, &[&self.pin]);
+        self.tx_sm.set_pins(Level::High, &[&self.pin]);
+
+        // Restart RX state machine to prepare for transmission
+        self.rx_sm.restart();
+        // Enable RX state machine
+        // This allows it to start receiving data from the line
+        // while benefiting from the pull-up drive
+        self.rx_sm.set_enable(true);
+    }
+
+    fn enter_tx(&mut self) {
+        // Disable RX state machine to prevent receiving transmitted data
+        self.rx_sm.set_enable(false);
+
+        // Increase drive strength for better signal integrity
+        self.pin.set_drive_strength(Drive::_12mA);
+
+        // Set TX pin as output (to drive the line)
+        self.tx_sm.set_pin_dirs(Direction::Out, &[&self.pin]);
+        self.rx_sm.set_pin_dirs(Direction::Out, &[&self.pin]);
+
+        // Set pin High
+        self.tx_sm.set_pins(Level::High, &[&self.pin]);
+        self.rx_sm.set_pins(Level::High, &[&self.pin]);
+
+        // Restart TX state machine to prepare for transmission
+        self.tx_sm.restart();
+
+        // Enable TX state machine
+        self.tx_sm.set_enable(true);
+    }
+}
+
+impl Hardware for Hw<'_> {
+    async fn send(&mut self, msg: u32) {
+        self.enter_tx();
+        self.tx_sm.tx().wait_push(msg).await;
+        self.enter_rx().await;
+    }
+
+    async fn receive(&mut self) -> u32 {
+        self.rx_sm.rx().wait_pull().await
+    }
+
+    async fn wait_a_bit(&mut self) {
+        Timer::after_millis(5).await;
+    }
+
+    // Set error state
+    async fn set_error_state(&mut self, error: bool) {
+        if error && !self.on_error {
+            self.on_error = true;
+        }
+        if !error && self.on_error {
+            self.on_error = false;
+        }
+    }
 }
 
 fn pio_freq() -> fixed::FixedU32<fixed::types::extra::U8> {
     (U56F8::from_num(clocks::clk_sys_freq()) / (8 * SPEED)).to_fixed()
 }
 
-pub fn task_tx<'a>(common: &mut PioCommon<'a>, mut sm: SmTx<'a>, pin: &mut PioPin<'a>) -> SmTx<'a> {
+fn task_tx<'a>(common: &mut PioCommon<'a>, mut sm: SmTx<'a>, pin: &mut PioPin<'a>) -> SmTx<'a> {
     sm.set_pins(Level::High, &[pin]);
     sm.set_pin_dirs(Direction::Out, &[pin]);
     pin.set_slew_rate(embassy_rp::gpio::SlewRate::Fast);
@@ -139,7 +188,7 @@ pub fn task_tx<'a>(common: &mut PioCommon<'a>, mut sm: SmTx<'a>, pin: &mut PioPi
     sm
 }
 
-pub fn task_rx<'a>(common: &mut PioCommon<'a>, mut sm: SmRx<'a>, pin: &PioPin<'a>) -> SmRx<'a> {
+fn task_rx<'a>(common: &mut PioCommon<'a>, mut sm: SmRx<'a>, pin: &PioPin<'a>) -> SmRx<'a> {
     let rx_prog = pio_proc::pio_asm!(
         ".wrap_target",
         "start:",
@@ -209,13 +258,13 @@ async fn ping_pong<'a>(
     status_led: &mut Output<'static>,
     is_right: bool,
 ) {
-    let mut pin = pio1_common.make_pio_pin(gpio_pin1);
-    pin.set_pull(Pull::Up);
+    let mut pio_pin = pio1_common.make_pio_pin(gpio_pin1);
+    pio_pin.set_pull(Pull::Up);
+    let tx_sm = task_tx(&mut pio1_common, sm0, &mut pio_pin);
+    let rx_sm = task_rx(&mut pio1_common, sm1, &pio_pin);
 
-    let mut tx_sm = task_tx(&mut pio1_common, sm0, &mut pin);
-    let mut rx_sm = task_rx(&mut pio1_common, sm1, &pin);
-
-    enter_rx(&mut tx_sm, &mut rx_sm, &mut pin).await;
+    let mut hw = Hw::new(tx_sm, rx_sm, pio_pin);
+    hw.enter_rx().await;
 
     let mut ticker = Ticker::every(Duration::from_millis(200));
     let mut idx = 0;
@@ -224,7 +273,7 @@ async fn ping_pong<'a>(
     let mut num: u32 = 0;
     let mut errors: u32 = 0;
     loop {
-        match select(ticker.next(), rx_sm.rx().wait_pull()).await {
+        match select(ticker.next(), hw.receive()).await {
             select::Either::First(_n) => {
                 if is_right {
                     idx = (idx + 1) % TEST_DATA.len();
@@ -237,9 +286,7 @@ async fn ping_pong<'a>(
                         x,
                         x
                     );
-                    enter_tx(&mut tx_sm, &mut rx_sm, &mut pin);
-                    tx_sm.tx().wait_push(x).await;
-                    enter_rx(&mut tx_sm, &mut rx_sm, &mut pin).await;
+                    hw.send(x).await;
                 }
             }
             select::Either::Second(x) => {
@@ -252,9 +299,7 @@ async fn ping_pong<'a>(
                 defmt::info!("[{}] got byte: 0b{:032b} 0x{:04x}", num, x, x);
                 if !is_right {
                     // Send back the received byte
-                    enter_tx(&mut tx_sm, &mut rx_sm, &mut pin);
-                    tx_sm.tx().wait_push(x).await;
-                    enter_rx(&mut tx_sm, &mut rx_sm, &mut pin).await;
+                    hw.send(x).await;
                 } else {
                     if x != TEST_DATA[idx] {
                         defmt::error!(
