@@ -205,11 +205,6 @@ impl<W: Sized + Hardware> SideProtocol<W> {
 
     pub async fn run_once(&mut self) -> Option<Event> {
         let msg = self.hw.receive().await;
-        if msg == 0 {
-            #[cfg(feature = "log-protocol")]
-            error!("Invalid message 0x0000");
-            panic!("Invalid message 0x0000");
-        }
         match deserialize(msg) {
             Ok((event, sid)) => {
                 #[cfg(feature = "log-protocol")]
