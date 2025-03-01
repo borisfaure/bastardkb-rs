@@ -27,7 +27,7 @@ use crate::keymap_borisfaure::{KBLayout, LAYERS};
 use crate::keymap_test::{KBLayout, LAYERS};
 
 /// Layout refresh rate, in ms
-const REFRESH_RATE_MS: u64 = 1;
+const REFRESH_RATE_MS: u64 = 8;
 /// Number of events in the layout channel
 const NB_EVENTS: usize = 64;
 /// Channel to send `keyberon::layout::event` events to the layout handler
