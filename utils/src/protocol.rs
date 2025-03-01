@@ -1,7 +1,8 @@
 //! Protocol between the halves.
 
+use crate::log::warn;
 #[cfg(feature = "log-protocol")]
-use crate::log::{error, info, warn, Debug2Format};
+use crate::log::{info, Debug2Format};
 use crate::serde::{deserialize, serialize, Event, Message};
 use crate::sid::{CircBuf, Sid};
 use core::future;
@@ -27,7 +28,7 @@ pub struct SideProtocol<W: Sized + Hardware> {
 
     /// Events sent to the other side
     sent: CircBuf<Message>,
-    /// Retransmit requests
+    /// Retransmit requests to send to the other side
     /// The key is the sid used to retransmit
     retransmit: CircBuf<Sid>,
     /// Last message received, if from a retransmit request
@@ -65,10 +66,11 @@ impl<W: Sized + Hardware> SideProtocol<W> {
         let msg = serialize(event, self.next_tx_sid).unwrap();
         #[cfg(feature = "log-protocol")]
         info!(
-            "[{}] Sending [{}] Event: {}",
+            "[{}] Sending [{}] Event: {} (0x{:04x})",
             self.name,
             self.next_tx_sid,
-            Debug2Format(&event)
+            Debug2Format(&event),
+            msg
         );
         self.hw.send(msg).await;
         self.sent.insert(self.next_tx_sid, msg);
@@ -85,15 +87,13 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     }
 
     /// On invalid sequence id
-    async fn on_invalid_sid(&mut self, msg: Message, sid: Sid) {
-        #[cfg(feature = "log-protocol")]
+    async fn on_invalid_sid(&mut self, msg: Message, event: Event, sid: Sid) {
         warn!(
-            "[{}] Invalid sid received: expected {}, got {}",
-            self.name, self.next_rx_sid, sid
+            "[{}] Invalid sid received: expected {}, got {} for event {:?}",
+            self.name, self.next_rx_sid, sid, event
         );
         if let Some(last_msg) = self.last_msg {
             if last_msg == msg {
-                #[cfg(feature = "log-protocol")]
                 warn!("[{}] Last message was the same, skip it", self.name);
                 return;
             }
@@ -141,8 +141,9 @@ impl<W: Sized + Hardware> SideProtocol<W> {
             );
             self.hw.send(msg).await;
         } else {
-            #[cfg(feature = "log-protocol")]
             warn!("[{}] No event to retransmit for sid {}", self.name, sid);
+            let msg = serialize(Event::Noop, sid).unwrap();
+            self.hw.send(msg).await;
         }
     }
 
@@ -216,7 +217,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                     Debug2Format(&event)
                 );
                 if self.next_rx_sid != sid {
-                    self.on_invalid_sid(msg, sid).await;
+                    self.on_invalid_sid(msg, event, sid).await;
                 } else {
                     self.next_rx_sid.next();
                     if let Some(event) = self.handle_received_event(msg, event, sid).await {
@@ -225,7 +226,6 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                 }
             }
             Err(_) => {
-                #[cfg(feature = "log-protocol")]
                 warn!("[{}] Unable to deserialize event: 0x{:04x}", self.name, msg);
                 self.hw.wait_a_bit().await;
                 self.send_event(Event::Retransmit(self.next_rx_sid)).await;
@@ -248,7 +248,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
 mod tests {
     use super::*;
     use arraydeque::ArrayDeque;
-    use log::error;
+    use log::{error, info};
     use lovely_env_logger;
     use tokio::sync::mpsc;
 
@@ -369,7 +369,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_retransmit() {
+    async fn test_retransmit_simple() {
         let _ = lovely_env_logger::try_init_default();
         let hw_right = MockHardware::new();
         let hw_left = MockHardware::new();
@@ -397,5 +397,30 @@ mod tests {
         communicate(&mut right, &mut left).await;
         assert!(is_stable(&right));
         assert!(is_stable(&left));
+    }
+
+    #[tokio::test]
+    async fn test_retransmit_both_sides() {
+        let _ = lovely_env_logger::try_init_default();
+        let hw_right = MockHardware::new();
+        let hw_left = MockHardware::new();
+        let mut right = SideProtocol::new(hw_right, "right");
+        let mut left = SideProtocol::new(hw_left, "left");
+
+        right.next_rx_sid = Sid::new(0);
+        right.next_tx_sid = Sid::new(0);
+        left.next_rx_sid = Sid::new(5);
+        left.next_tx_sid = Sid::new(10);
+        right.send_event(Event::Ping).await;
+        // Let it commmunicate and stabilize
+        communicate(&mut right, &mut left).await;
+        info!("Right: {:?}", right.hw.msg_sent);
+        info!("Left: {:?}", right.hw.msg_sent);
+        assert!(is_stable(&right));
+        assert!(is_stable(&left));
+        right.send_event(Event::Press(0, 0)).await;
+        left.send_event(Event::Press(3, 3)).await;
+        // Let it commmunicate and stabilize
+        communicate(&mut right, &mut left).await;
     }
 }
