@@ -257,6 +257,14 @@ async fn ping_pong<'a>(
                     enter_rx(&mut tx_sm, &mut rx_sm, &mut pin).await;
                 } else {
                     if x != TEST_DATA[idx] {
+                        defmt::error!(
+                            "[{}] got byte: 0b{:032b} 0x{:04x}, expecting 0b{:032b} 0x{:04x}",
+                            num,
+                            x,
+                            x,
+                            TEST_DATA[idx],
+                            TEST_DATA[idx]
+                        );
                         errors += 1;
                     }
                 }
