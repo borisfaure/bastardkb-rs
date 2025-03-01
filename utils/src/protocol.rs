@@ -13,8 +13,6 @@ pub trait Hardware {
     fn send(&mut self, msg: Message) -> impl future::Future<Output = ()> + Send;
     /// Receive a message
     fn receive(&mut self) -> impl future::Future<Output = Message> + Send;
-    /// Wait a bit
-    fn wait_a_bit(&mut self) -> impl future::Future<Output = ()> + Send;
 
     /// Set error state
     fn set_error_state(&mut self, error: bool) -> impl future::Future<Output = ()> + Send;
@@ -103,7 +101,6 @@ impl<W: Sized + Hardware> SideProtocol<W> {
         for s in self.next_rx_sid.iter(next) {
             self.rx_errors.insert(s, ());
         }
-        self.hw.wait_a_bit().await;
         self.send_event(Event::Retransmit(self.next_rx_sid)).await;
     }
 
@@ -227,7 +224,6 @@ impl<W: Sized + Hardware> SideProtocol<W> {
             }
             Err(_) => {
                 warn!("[{}] Unable to deserialize event: 0x{:04x}", self.name, msg);
-                self.hw.wait_a_bit().await;
                 self.send_event(Event::Retransmit(self.next_rx_sid)).await;
             }
         }
@@ -271,9 +267,6 @@ mod tests {
                     return msg;
                 }
             }
-        }
-        fn wait_a_bit(&mut self) -> impl future::Future<Output = ()> + Send {
-            async {}
         }
         fn set_error_state(&mut self, error: bool) -> impl future::Future<Output = ()> + Send {
             self.on_error = error;

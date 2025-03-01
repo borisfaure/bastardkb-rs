@@ -11,7 +11,6 @@ use embassy_rp::{
     pio::{self, Direction, FifoJoin, ShiftDirection, StateMachine},
 };
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
-use embassy_time::{Duration, Timer};
 use fixed::{traits::ToFixed, types::U56F8};
 use keyberon::layout::Event as KBEvent;
 use utils::protocol::{Hardware, SideProtocol};
@@ -67,7 +66,7 @@ impl<'a> Hw<'a> {
         }
 
         // Wait a bit after the last sent message
-        Timer::after(Duration::from_micros(1_000_000 / SPEED)).await;
+        cortex_m::asm::delay(100);
 
         // Disable TX state machine before manipulating TX pin
         self.tx_sm.set_enable(false);
@@ -123,10 +122,6 @@ impl Hardware for Hw<'_> {
 
     async fn receive(&mut self) -> u32 {
         self.rx_sm.rx().wait_pull().await
-    }
-
-    async fn wait_a_bit(&mut self) {
-        Timer::after_millis(5).await;
     }
 
     // Set error state
