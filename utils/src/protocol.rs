@@ -1,7 +1,7 @@
 //! Protocol between the halves.
 
 #[cfg(feature = "log-protocol")]
-use crate::log::*;
+use crate::log::{error, info, warn, Debug2Format};
 use crate::serde::{deserialize, serialize, Event, Message};
 use crate::sid::{CircBuf, Sid};
 use core::future;
@@ -14,9 +14,6 @@ pub trait Hardware {
     fn receive(&mut self) -> impl future::Future<Output = Message> + Send;
     /// Wait a bit
     fn wait_a_bit(&mut self) -> impl future::Future<Output = ()> + Send;
-
-    /// Process an event
-    fn process_event(&mut self, event: Event) -> impl future::Future<Output = ()> + Send;
 
     /// Set error state
     fn set_error_state(&mut self, error: bool) -> impl future::Future<Output = ()> + Send;
@@ -150,7 +147,13 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     }
 
     /// On Ok event
-    async fn handle_received_event(&mut self, msg: Message, event: Event, sid: Sid) {
+    async fn handle_received_event(
+        &mut self,
+        msg: Message,
+        event: Event,
+        sid: Sid,
+    ) -> Option<Event> {
+        let mut to_process = None;
         match event {
             Event::Noop => {}
             Event::Ping => {
@@ -164,7 +167,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
             }
             _ => {
                 self.acknowledge(sid).await;
-                self.hw.process_event(event).await;
+                to_process = Some(event);
             }
         }
         // If this Sequence Id had an error, we can clear it now
@@ -191,16 +194,22 @@ impl<W: Sized + Hardware> SideProtocol<W> {
         if self.rx_errors.is_empty() {
             self.hw.set_error_state(false).await;
         } else {
-            // Now that we have processed the event, since there are still
+            // Now that we have an event to process, since there are still
             // errors, we need to ask to retransmit the next event
             if self.rx_errors.get(self.next_rx_sid).is_some() {
                 self.send_event(Event::Retransmit(self.next_rx_sid)).await;
             }
         }
+        return to_process;
     }
 
-    /// Receive a message
-    pub async fn on_receive(&mut self, msg: Message) {
+    pub async fn run_once(&mut self) -> Option<Event> {
+        let msg = self.hw.receive().await;
+        if msg == 0 {
+            #[cfg(feature = "log-protocol")]
+            error!("Invalid message 0x0000");
+            panic!("Invalid message 0x0000");
+        }
         match deserialize(msg) {
             Ok((event, sid)) => {
                 #[cfg(feature = "log-protocol")]
@@ -215,7 +224,9 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                     self.on_invalid_sid(msg, sid).await;
                 } else {
                     self.next_rx_sid.next();
-                    self.handle_received_event(msg, event, sid).await;
+                    if let Some(event) = self.handle_received_event(msg, event, sid).await {
+                        return Some(event);
+                    }
                 }
             }
             Err(_) => {
@@ -223,6 +234,16 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                 warn!("[{}] Unable to deserialize event: 0x{:04x}", self.name, msg);
                 self.hw.wait_a_bit().await;
                 self.send_event(Event::Retransmit(self.next_rx_sid)).await;
+            }
+        }
+        None
+    }
+
+    /// Receive a message
+    pub async fn receive(&mut self) -> Event {
+        loop {
+            if let Some(event) = self.run_once().await {
+                return event;
             }
         }
     }
@@ -234,25 +255,29 @@ mod tests {
     use arraydeque::ArrayDeque;
     use log::error;
     use lovely_env_logger;
+    use tokio::sync::mpsc;
 
     struct MockHardware {
         msg_sent: usize,
-        queue: ArrayDeque<Message, 64, arraydeque::behavior::Saturating>,
+        send_queue: ArrayDeque<Message, 64, arraydeque::behavior::Saturating>,
+        to_rx: mpsc::Sender<Message>,
+        rx: mpsc::Receiver<Message>,
         on_error: bool,
     }
     impl Hardware for MockHardware {
         fn send(&mut self, msg: Message) -> impl future::Future<Output = ()> + Send {
             self.msg_sent += 1;
-            self.queue.push_front(msg).unwrap();
+            self.send_queue.push_front(msg).unwrap();
             async {}
         }
-        fn receive(&mut self) -> impl future::Future<Output = Message> + Send {
-            async { 0x1234 }
+        async fn receive(&mut self) -> Message {
+            loop {
+                if let Some(msg) = self.rx.recv().await {
+                    return msg;
+                }
+            }
         }
         fn wait_a_bit(&mut self) -> impl future::Future<Output = ()> + Send {
-            async {}
-        }
-        fn process_event(&mut self, _event: Event) -> impl future::Future<Output = ()> + Send {
             async {}
         }
         fn set_error_state(&mut self, error: bool) -> impl future::Future<Output = ()> + Send {
@@ -262,9 +287,12 @@ mod tests {
     }
     impl MockHardware {
         fn new() -> Self {
+            let (to_rx, rx) = mpsc::channel(64);
             Self {
                 msg_sent: 0,
-                queue: ArrayDeque::new(),
+                send_queue: ArrayDeque::new(),
+                to_rx,
+                rx,
                 on_error: false,
             }
         }
@@ -276,13 +304,15 @@ mod tests {
         left: &mut SideProtocol<MockHardware>,
     ) {
         loop {
-            if let Some(msg) = left.hw.queue.pop_back() {
-                right.on_receive(msg).await;
+            if let Some(msg) = left.hw.send_queue.pop_back() {
+                right.hw.to_rx.send(msg).await.unwrap();
+                right.run_once().await;
             }
-            if let Some(msg) = right.hw.queue.pop_back() {
-                left.on_receive(msg).await;
+            if let Some(msg) = right.hw.send_queue.pop_back() {
+                left.hw.to_rx.send(msg).await.unwrap();
+                left.run_once().await;
             }
-            if right.hw.queue.is_empty() && left.hw.queue.is_empty() {
+            if right.hw.send_queue.is_empty() && left.hw.send_queue.is_empty() {
                 break;
             }
         }
@@ -312,10 +342,12 @@ mod tests {
 
         // Send a message from right to left
         right.send_event(Event::Ping).await;
-        let msg = right.hw.queue.pop_back().unwrap();
-        left.on_receive(msg).await;
-        let msg = left.hw.queue.pop_back().unwrap();
-        right.on_receive(msg).await;
+        let msg = right.hw.send_queue.pop_back().unwrap();
+        left.hw.to_rx.send(msg).await.unwrap();
+        left.run_once().await;
+        let msg = left.hw.send_queue.pop_back().unwrap();
+        right.hw.to_rx.send(msg).await.unwrap();
+        right.run_once().await;
         assert!(right.sent.is_empty());
     }
 
@@ -329,11 +361,11 @@ mod tests {
 
         // Send 4 pings from right to left but only receive the 4th one
         right.send_event(Event::Ping).await;
-        right.hw.queue.pop_back().unwrap();
+        right.hw.send_queue.pop_back().unwrap();
         right.send_event(Event::Ping).await;
-        right.hw.queue.pop_back().unwrap();
+        right.hw.send_queue.pop_back().unwrap();
         right.send_event(Event::Ping).await;
-        right.hw.queue.pop_back().unwrap();
+        right.hw.send_queue.pop_back().unwrap();
         right.send_event(Event::Ping).await;
         // Let it commmunicate and stabilize
         communicate(&mut right, &mut left).await;
@@ -358,12 +390,12 @@ mod tests {
         right.send_event(Event::Ping).await;
         let mut bad = [0u32, 0, 0];
         for i in 0..3 {
-            let mut msg = right.hw.queue.pop_front().unwrap();
+            let mut msg = right.hw.send_queue.pop_front().unwrap();
             msg ^= 0x1234;
             bad[i] = msg;
         }
         for i in 0..3 {
-            right.hw.queue.push_front(bad[i]).unwrap();
+            right.hw.send_queue.push_front(bad[i]).unwrap();
         }
         right.send_event(Event::Ping).await;
         // Let it commmunicate and stabilize
