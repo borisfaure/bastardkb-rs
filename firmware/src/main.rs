@@ -14,7 +14,7 @@ use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
 use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_rp::usb::{Driver, InterruptHandler as USBInterruptHandler};
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, HidWriter, State};
-use embassy_usb::{Builder, Config as USBConfig};
+use embassy_usb::Builder;
 use futures::future;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -36,6 +36,8 @@ mod pmw3360;
 mod rgb_leds;
 /// Handling the other half of the keyboard
 mod side;
+/// USB handling
+mod usb;
 
 /// Basic layout for the keyboard
 #[cfg(feature = "keymap_basic")]
@@ -73,39 +75,6 @@ bind_interrupts!(struct PioIrq1 {
     PIO1_IRQ_0 => PioInterruptHandler<PIO1>;
 });
 
-/// USB VID based on
-/// <https://github.com/obdev/v-usb/blob/master/usbdrv/USB-IDs-for-free.txt>
-const VID: u16 = 0x16c0;
-
-/// USB PID
-const PID: u16 = 0x27db;
-
-/// USB Product
-#[cfg(feature = "cnano")]
-const PRODUCT: &str = "Charybdis Nano keyboard";
-#[cfg(feature = "dilemma")]
-const PRODUCT: &str = "Dilemma keyboard";
-/// USB Manufacturer
-const MANUFACTURER: &str = "Bastard Keyboards & Boris Faure";
-
-/// Generate the Embassy-USB configuration
-pub fn usb_config() -> USBConfig<'static> {
-    let mut config = USBConfig::new(VID, PID);
-    config.manufacturer = Some(MANUFACTURER);
-    config.product = Some(PRODUCT);
-    config.serial_number = Some(env!("CARGO_PKG_VERSION"));
-    config.max_power = 100;
-    config.max_packet_size_0 = 64;
-
-    // Required for windows compatibility.
-    // https://developer.nordicsemi.com/nRF_Connect_SDK/doc/1.9.1/kconfig/CONFIG_CDC_ACM_IAD.html#help
-    config.device_class = 0xEF;
-    config.device_sub_class = 0x02;
-    config.device_protocol = 0x01;
-    config.composite_with_iads = true;
-    config
-}
-
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
@@ -113,9 +82,6 @@ async fn main(spawner: Spawner) {
 
     // Create the driver, from the HAL.
     let driver = Driver::new(p.USB, Irqs);
-
-    // Create embassy-usb Config
-    let usb_config = usb_config();
 
     // Create embassy-usb DeviceBuilder using the driver and config.
     // It needs some buffers for building the descriptors.
@@ -130,6 +96,7 @@ async fn main(spawner: Spawner) {
     let mut state_kb = State::new();
     let mut state_mouse = State::new();
 
+    let usb_config = usb::config();
     let mut builder = Builder::new(
         driver,
         usb_config,
