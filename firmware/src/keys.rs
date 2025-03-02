@@ -2,6 +2,7 @@ use crate::core::LAYOUT_CHANNEL;
 use crate::device::is_host;
 use crate::rgb_leds::RGB_CHANNEL;
 use crate::side::SIDE_CHANNEL;
+use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
 use embassy_time::{Duration, Ticker};
 use keyberon::debounce::Debouncer;
@@ -57,7 +58,8 @@ impl<'a> Matrix<'a> {
 }
 
 /// Loop that scans the keyboard matrix
-pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
+#[embassy_executor::task]
+async fn matrix_scanner(mut matrix: Matrix<'static>, is_right: bool) {
     let mut ticker = Ticker::every(Duration::from_hz(REFRESH_RATE.into()));
     let mut debouncer = Debouncer::new(matrix_state_new(), matrix_state_new(), NB_BOUNCE);
 
@@ -146,4 +148,8 @@ pub async fn matrix_scanner(mut matrix: Matrix<'_>, is_right: bool) {
 
         ticker.next().await;
     }
+}
+
+pub fn init(spawner: &Spawner, matrix: Matrix<'static>, is_right: bool) {
+    spawner.must_spawn(matrix_scanner(matrix, is_right));
 }

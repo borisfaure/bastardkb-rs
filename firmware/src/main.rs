@@ -2,7 +2,7 @@
 #![no_main]
 
 use crate::hid::{hid_kb_writer_handler, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR};
-use crate::keys::{matrix_scanner, Matrix};
+use crate::keys::Matrix;
 #[cfg(feature = "cnano")]
 use crate::pmw3360::Pmw3360;
 use embassy_executor::Spawner;
@@ -239,7 +239,7 @@ async fn main(spawner: Spawner) {
     );
     let mut core = Core::new(hid_mouse, is_right);
     let layout_fut = core.run();
-    let matrix_fut = matrix_scanner(matrix, is_right);
+    keys::init(&spawner, matrix, is_right);
 
     #[cfg(feature = "cnano")]
     if is_right {
@@ -268,25 +268,23 @@ async fn main(spawner: Spawner) {
         future::join3(
             future::join3(usb_fut, half_duplex_fut, rgb_leds_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut),
-            future::join3(matrix_fut, layout_fut, ball_sensor_fut),
+            future::join(layout_fut, ball_sensor_fut),
         )
         .await;
     } else {
         defmt::info!("let's go!");
-        future::join3(
+        future::join(
             future::join3(usb_fut, half_duplex_fut, rgb_leds_fut),
-            future::join(hid_kb_reader_fut, hid_kb_writer_fut),
-            future::join(matrix_fut, layout_fut),
+            future::join(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
         )
         .await;
     }
     #[cfg(feature = "dilemma")]
     {
         defmt::info!("let's go!");
-        future::join3(
+        future::join(
             future::join3(usb_fut, half_duplex_fut, rgb_leds_fut),
-            future::join(hid_kb_reader_fut, hid_kb_writer_fut),
-            future::join(matrix_fut, layout_fut),
+            future::join3(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
         )
         .await;
     }
