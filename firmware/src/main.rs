@@ -193,6 +193,7 @@ async fn main(spawner: Spawner) {
         &mut status_led,
         is_right,
     );
+
     let pio0 = Pio::new(p.PIO0, PioIrq0);
     rgb_leds::init(
         &spawner,
@@ -205,6 +206,7 @@ async fn main(spawner: Spawner) {
         p.PIN_10,
         is_right,
     );
+
     let mut core = Core::new(hid_mouse, is_right);
     let layout_fut = core.run();
     keys::init(&spawner, matrix, is_right);
@@ -243,7 +245,7 @@ async fn main(spawner: Spawner) {
         defmt::info!("let's go!");
         future::join(
             future::join(usb_fut, half_duplex_fut),
-            future::join(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
+            future::join3(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
         )
         .await;
     }
