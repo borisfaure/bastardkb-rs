@@ -26,7 +26,7 @@ embassy-futures = "0.1"
 embassy-usb-logger = "0.4"
 
 pio = "0.2"
-pio-proc = "0.3"
+pio-proc = "0.2"
 
 fixed = "1.24"
 fixed-macro = "1.2"
