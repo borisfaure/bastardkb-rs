@@ -213,49 +213,25 @@ async fn main(spawner: Spawner) {
 
     #[cfg(feature = "cnano")]
     if is_right {
-        let mut ball = {
-            let sclk = p.PIN_22; // B1
-            let mosi = p.PIN_23; // B2
-            let miso = p.PIN_20; // B3
-            let cs = Output::new(p.PIN_16, Level::High); // F0
-            let tx_dma = p.DMA_CH1;
-            let rx_dma = p.DMA_CH2;
-            let mut spi_config = SpiConfig::default();
-            spi_config.frequency = 7_000_000;
-            spi_config.polarity = Polarity::IdleHigh;
-            spi_config.phase = Phase::CaptureOnSecondTransition;
-            let ball_spi = Spi::new(p.SPI0, sclk, mosi, miso, tx_dma, rx_dma, spi_config);
-            let mut ball = Pmw3360::new(ball_spi, cs);
+        let sclk = p.PIN_22; // B1
+        let mosi = p.PIN_23; // B2
+        let miso = p.PIN_20; // B3
+        let cs = Output::new(p.PIN_16, Level::High); // F0
+        let tx_dma = p.DMA_CH1;
+        let rx_dma = p.DMA_CH2;
+        let mut spi_config = SpiConfig::default();
+        spi_config.frequency = 7_000_000;
+        spi_config.polarity = Polarity::IdleHigh;
+        spi_config.phase = Phase::CaptureOnSecondTransition;
+        let ball_spi = Spi::new(p.SPI0, sclk, mosi, miso, tx_dma, rx_dma, spi_config);
+        let ball = Pmw3360::new(ball_spi, cs);
 
-            let res = ball.start().await;
-            if let Err(e) = res {
-                defmt::error!("Error: {:?}", defmt::Debug2Format(&e));
-            }
-            ball
-        };
-        let ball_sensor_fut = ball.run();
-        defmt::info!("let's go!");
-        future::join3(
-            future::join(usb_fut, half_duplex_fut),
-            future::join(hid_kb_reader_fut, hid_kb_writer_fut),
-            future::join(layout_fut, ball_sensor_fut),
-        )
-        .await;
-    } else {
-        defmt::info!("let's go!");
-        future::join(
-            future::join(usb_fut, half_duplex_fut),
-            future::join3(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
-        )
-        .await;
+        spawner.must_spawn(pmw3360::run(ball));
     }
-    #[cfg(feature = "dilemma")]
-    {
-        defmt::info!("let's go!");
-        future::join(
-            future::join(usb_fut, half_duplex_fut),
-            future::join3(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
-        )
-        .await;
-    }
+    defmt::info!("let's go!");
+    future::join(
+        future::join(usb_fut, half_duplex_fut),
+        future::join3(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
+    )
+    .await;
 }

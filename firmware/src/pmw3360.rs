@@ -4,7 +4,8 @@ use crate::mouse::{MouseMove, MOUSE_MOVE_CHANNEL};
 use core::fmt::Debug;
 use embassy_futures::select::{select, Either};
 use embassy_rp::gpio::Output;
-use embassy_rp::spi::{Error as SpiError, Instance as SpiInstance, Mode, Spi};
+use embassy_rp::peripherals::SPI0;
+use embassy_rp::spi::{Async, Error as SpiError, Instance as SpiInstance, Mode, Spi};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_hal::spi::SpiBus;
@@ -113,6 +114,17 @@ pub struct Pmw3360<'a, T: SpiInstance, M: Mode> {
     last_dx: i16,
     /// Last Dy value
     last_dy: i16,
+}
+
+pub type Pmw3360Dev = Pmw3360<'static, SPI0, Async>;
+
+#[embassy_executor::task]
+pub async fn run(mut ball: Pmw3360Dev) {
+    let res = ball.start().await;
+    if let Err(e) = res {
+        defmt::error!("Error: {:?}", defmt::Debug2Format(&e));
+    }
+    ball.run().await;
 }
 
 impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
