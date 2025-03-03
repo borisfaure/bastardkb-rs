@@ -25,7 +25,7 @@ embassy-usb = { version = "0.4",features = ["defmt"] }
 embassy-futures = "0.1"
 embassy-usb-logger = "0.4"
 
-pio = "0.3"
+pio = "0.2"
 pio-proc = "0.3"
 
 fixed = "1.24"
