@@ -5,7 +5,10 @@ use crate::prng::XorShift32;
 use crate::serde::Error as SerdeError;
 
 /// Number of LEDs on each side
+#[cfg(feature = "cnano")]
 pub const NUM_LEDS: usize = 18;
+#[cfg(feature = "dilemma")]
+pub const NUM_LEDS: usize = 36;
 /// Keyboard matrix rows
 pub const ROWS: usize = 4;
 /// Keyboard matrix columns

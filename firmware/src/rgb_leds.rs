@@ -1,4 +1,5 @@
 use crate::side::SIDE_CHANNEL;
+use embassy_executor::Spawner;
 use embassy_futures::select::{select3, Either3};
 use embassy_rp::dma::{AnyChannel, Channel as DmaChannel};
 use embassy_rp::peripherals::PIO0;
@@ -12,7 +13,7 @@ use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
 use keyberon::layout::Event as KbEvent;
-use utils::rgb_anims::{RgbAnim, RgbAnimType, ERROR_COLOR_INDEX, RGB8};
+use utils::rgb_anims::{RgbAnim, RgbAnimType, ERROR_COLOR_INDEX, NUM_LEDS, RGB8};
 use utils::serde::Event;
 
 use {defmt_rtt as _, panic_probe as _};
@@ -112,16 +113,8 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
     }
 }
 
-/// Run the LED animation control
-pub async fn run(
-    mut common: Common<'_, PIO0>,
-    sm0: StateMachine<'_, PIO0, 0>,
-    dma: impl DmaChannel,
-    pin: impl PioPin,
-    is_right: bool,
-) {
-    let mut ws2812 = Ws2812::new(&mut common, sm0, dma, pin);
-
+#[embassy_executor::task]
+pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS>, is_right: bool) {
     // Loop forever making RGB values and pushing them out to the WS2812.
     let mut ticker = Ticker::every(Duration::from_hz(30));
 
@@ -168,4 +161,18 @@ pub async fn run(
             }
         }
     }
+}
+
+/// Run the LED animation control
+pub fn init(
+    spawner: &Spawner,
+    mut common: Common<'static, PIO0>,
+    sm0: StateMachine<'static, PIO0, 0>,
+    dma: impl DmaChannel,
+    pin: impl PioPin,
+    is_right: bool,
+) {
+    let ws2812 = Ws2812::new(&mut common, sm0, dma, pin);
+
+    spawner.must_spawn(run(ws2812, is_right));
 }

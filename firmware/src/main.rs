@@ -194,7 +194,8 @@ async fn main(spawner: Spawner) {
         is_right,
     );
     let pio0 = Pio::new(p.PIO0, PioIrq0);
-    let rgb_leds_fut = rgb_leds::run(
+    rgb_leds::init(
+        &spawner,
         pio0.common,
         pio0.sm0,
         p.DMA_CH0,
@@ -233,7 +234,7 @@ async fn main(spawner: Spawner) {
         let ball_sensor_fut = ball.run();
         defmt::info!("let's go!");
         future::join3(
-            future::join3(usb_fut, half_duplex_fut, rgb_leds_fut),
+            future::join(usb_fut, half_duplex_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut),
             future::join(layout_fut, ball_sensor_fut),
         )
@@ -241,7 +242,7 @@ async fn main(spawner: Spawner) {
     } else {
         defmt::info!("let's go!");
         future::join(
-            future::join3(usb_fut, half_duplex_fut, rgb_leds_fut),
+            future::join(usb_fut, half_duplex_fut),
             future::join(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
         )
         .await;
@@ -250,7 +251,7 @@ async fn main(spawner: Spawner) {
     {
         defmt::info!("let's go!");
         future::join(
-            future::join3(usb_fut, half_duplex_fut, rgb_leds_fut),
+            future::join(usb_fut, half_duplex_fut),
             future::join3(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
         )
         .await;
