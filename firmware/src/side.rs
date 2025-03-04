@@ -1,5 +1,6 @@
 use crate::core::LAYOUT_CHANNEL;
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
+use embassy_executor::Spawner;
 use embassy_futures::{
     select::{select, Either},
     yield_now,
@@ -31,11 +32,11 @@ pub type SmTx<'a> = StateMachine<'a, PIO1, { TX }>;
 pub type PioCommon<'a> = pio::Common<'a, PIO1>;
 pub type PioPin<'a> = pio::Pin<'a, PIO1>;
 
-struct SidesComms<'a, W: Sized + Hardware> {
+struct SidesComms<W: Sized + Hardware> {
     /// Protocol to communicate with the other side
     protocol: SideProtocol<W>,
     /// Status LED
-    status_led: &'a mut Output<'static>,
+    status_led: Output<'static>,
 }
 
 struct Hw<'a> {
@@ -180,9 +181,9 @@ async fn process_event(event: Event) {
     }
 }
 
-impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
+impl<W: Sized + Hardware> SidesComms<W> {
     /// Create a new event buffer
-    pub fn new(name: &'static str, hw: W, status_led: &'a mut Output<'static>) -> Self {
+    pub fn new(name: &'static str, hw: W, status_led: Output<'static>) -> Self {
         Self {
             protocol: SideProtocol::new(hw, name),
             status_led,
@@ -291,12 +292,18 @@ fn task_rx<'a>(common: &mut PioCommon<'a>, mut sm: SmRx<'a>, pin: &PioPin<'a>) -
     sm
 }
 
-pub async fn half_duplex_comm<'a>(
-    mut pio_common: PioCommon<'a>,
-    sm0: SmTx<'a>,
-    sm1: SmRx<'a>,
+#[embassy_executor::task]
+async fn run(mut sides_comms: SidesComms<Hw<'static>>) {
+    sides_comms.run().await;
+}
+
+pub async fn init(
+    spawner: &Spawner,
+    mut pio_common: PioCommon<'static>,
+    sm0: SmTx<'static>,
+    sm1: SmRx<'static>,
     gpio_pin1: PIN_1,
-    status_led: &mut Output<'static>,
+    status_led: Output<'static>,
     is_right: bool,
 ) {
     let mut pio_pin = pio_common.make_pio_pin(gpio_pin1);
@@ -307,6 +314,6 @@ pub async fn half_duplex_comm<'a>(
     let name = if is_right { "Right" } else { "Left" };
     let mut hw = Hw::new(tx_sm, rx_sm, pio_pin);
     hw.enter_rx().await;
-    let mut sides_comms: SidesComms<'_, Hw<'_>> = SidesComms::new(name, hw, status_led);
-    sides_comms.run().await;
+    let comms = SidesComms::new(name, hw, status_led);
+    spawner.must_spawn(run(comms));
 }

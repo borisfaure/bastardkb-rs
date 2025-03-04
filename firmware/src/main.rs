@@ -185,14 +185,16 @@ async fn main(spawner: Spawner) {
     status_led.set_high();
 
     let pio1 = Pio::new(p.PIO1, PioIrq1);
-    let half_duplex_fut = side::half_duplex_comm(
+    side::init(
+        &spawner,
         pio1.common,
         pio1.sm0,
         pio1.sm1,
         p.PIN_1,
-        &mut status_led,
+        status_led,
         is_right,
-    );
+    )
+    .await;
 
     let pio0 = Pio::new(p.PIO0, PioIrq0);
     rgb_leds::init(
@@ -228,10 +230,11 @@ async fn main(spawner: Spawner) {
 
         spawner.must_spawn(pmw3360::run(ball));
     }
+
     defmt::info!("let's go!");
     future::join(
-        future::join(usb_fut, half_duplex_fut),
-        future::join3(hid_kb_reader_fut, hid_kb_writer_fut, layout_fut),
+        future::join(usb_fut, layout_fut),
+        future::join(hid_kb_reader_fut, hid_kb_writer_fut),
     )
     .await;
 }
