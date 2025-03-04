@@ -1,3 +1,6 @@
+use embassy_rp::peripherals::USB;
+use embassy_rp::usb::Driver;
+use embassy_usb::Builder;
 use embassy_usb::Config as USBConfig;
 
 /// USB VID based on
@@ -31,4 +34,9 @@ pub fn config() -> USBConfig<'static> {
     config.device_protocol = 0x01;
     config.composite_with_iads = true;
     config
+}
+
+#[embassy_executor::task]
+pub async fn run(builder: Builder<'static, Driver<'static, USB>>) {
+    builder.build().run().await;
 }

@@ -141,10 +141,7 @@ async fn main(spawner: Spawner) {
     let hid_kb_writer_fut = hid_kb_writer_handler(hid_kb_writer);
 
     // Build the builder.
-    let mut usb = builder.build();
-
-    // Run the USB device.
-    let usb_fut = usb.run();
+    spawner.must_spawn(usb::run(builder));
 
     #[cfg(feature = "cnano")]
     let rows = [
@@ -235,5 +232,5 @@ async fn main(spawner: Spawner) {
     }
 
     defmt::info!("let's go!");
-    future::join3(usb_fut, hid_kb_reader_fut, hid_kb_writer_fut).await;
+    future::join(hid_kb_reader_fut, hid_kb_writer_fut).await;
 }
