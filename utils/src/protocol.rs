@@ -198,7 +198,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                 self.send_event(Event::Retransmit(self.next_rx_sid)).await;
             }
         }
-        return to_process;
+        to_process
     }
 
     pub async fn run_once(&mut self) -> Option<Event> {
