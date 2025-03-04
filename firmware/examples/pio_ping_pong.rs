@@ -170,7 +170,7 @@ fn task_tx<'a>(common: &mut PioCommon<'a>, mut sm: SmTx<'a>, pin: &mut PioPin<'a
     );
     let mut cfg = embassy_rp::pio::Config::default();
 
-    cfg.use_program(&common.load_program(&tx_prog.program), &[&pin]);
+    cfg.use_program(&common.load_program(&tx_prog.program), &[pin]);
     cfg.set_set_pins(&[pin]);
     cfg.set_out_pins(&[pin]);
     cfg.clock_divider = pio_freq();
