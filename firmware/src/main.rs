@@ -5,6 +5,7 @@ use crate::hid::{hid_kb_writer_handler, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCR
 use crate::keys::Matrix;
 #[cfg(feature = "cnano")]
 use crate::pmw3360::Pmw3360;
+use cortex_m::singleton;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
@@ -85,28 +86,29 @@ async fn main(spawner: Spawner) {
 
     // Create embassy-usb DeviceBuilder using the driver and config.
     // It needs some buffers for building the descriptors.
-    let mut config_descriptor = [0; 256];
-    let mut bos_descriptor = [0; 256];
+    let config_descriptor = singleton!(: [u8; 256] = [0; 256]).unwrap();
+    let bos_descriptor = singleton!(: [u8; 256] =[0; 256]).unwrap();
     // You can also add a Microsoft OS descriptor.
-    let mut msos_descriptor = [0; 256];
-    let mut control_buf = [0; 256];
+    let msos_descriptor = singleton!(: [u8; 256] = [0; 256]).unwrap();
+    let control_buf = singleton!(: [u8; 256] = [0; 256]).unwrap();
 
-    let mut device_handler = device::DeviceHandler::new();
+    let device_handler =
+        singleton!(: device::DeviceHandler = device::DeviceHandler::new()).unwrap();
 
-    let mut state_kb = State::new();
-    let mut state_mouse = State::new();
+    let state_kb = singleton!(: State = State::new()).unwrap();
+    let state_mouse = singleton!(: State = State::new()).unwrap();
 
     let usb_config = usb::config();
     let mut builder = Builder::new(
         driver,
         usb_config,
-        &mut config_descriptor,
-        &mut bos_descriptor,
-        &mut msos_descriptor,
-        &mut control_buf,
+        config_descriptor,
+        bos_descriptor,
+        msos_descriptor,
+        control_buf,
     );
 
-    builder.handler(&mut device_handler);
+    builder.handler(device_handler);
 
     defmt::info!("Detecting side...");
     #[cfg(feature = "cnano")]
@@ -121,7 +123,7 @@ async fn main(spawner: Spawner) {
         poll_ms: 60,
         max_packet_size: 8,
     };
-    let hidkb = HidReaderWriter::<_, 8, 8>::new(&mut builder, &mut state_kb, hidkb_config);
+    let hidkb = HidReaderWriter::<_, 8, 8>::new(&mut builder, state_kb, hidkb_config);
 
     let hidm_config = HidConfig {
         report_descriptor: MOUSE_REPORT_DESCRIPTOR,
@@ -129,7 +131,7 @@ async fn main(spawner: Spawner) {
         poll_ms: 10,
         max_packet_size: 7,
     };
-    let hid_mouse = HidWriter::<_, 7>::new(&mut builder, &mut state_mouse, hidm_config);
+    let hid_mouse = HidWriter::<_, 7>::new(&mut builder, state_mouse, hidm_config);
 
     let mut request_handler = hid::HidRequestHandler::new(&spawner);
     let (hid_kb_reader, hid_kb_writer) = hidkb.split();
@@ -209,8 +211,9 @@ async fn main(spawner: Spawner) {
         is_right,
     );
 
-    let mut core = Core::new(hid_mouse, is_right);
-    let layout_fut = core.run();
+    let core = Core::new(hid_mouse, is_right);
+    spawner.must_spawn(core::run(core));
+
     keys::init(&spawner, matrix, is_right);
 
     #[cfg(feature = "cnano")]
@@ -232,9 +235,5 @@ async fn main(spawner: Spawner) {
     }
 
     defmt::info!("let's go!");
-    future::join(
-        future::join(usb_fut, layout_fut),
-        future::join(hid_kb_reader_fut, hid_kb_writer_fut),
-    )
-    .await;
+    future::join3(usb_fut, hid_kb_reader_fut, hid_kb_writer_fut).await;
 }

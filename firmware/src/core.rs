@@ -237,21 +237,22 @@ impl<'a> Core<'a> {
             KbCustomEvent::NoEvent => (),
         }
     }
+}
 
-    /// Keyboard layout handler
-    /// Handles layout events into the keymap and sends HID reports to the HID handler
-    pub async fn run(&mut self) {
-        let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
-        loop {
-            match select(ticker.next(), LAYOUT_CHANNEL.receive()).await {
-                Either::First(_) => {
-                    self.tick().await;
-                }
-                Either::Second(event) => {
-                    self.on_key_event(event);
-                }
-            };
-        }
+#[embassy_executor::task]
+/// Keyboard layout handler
+/// Handles layout events into the keymap and sends HID reports to the HID handler
+pub async fn run(mut core: Core<'static>) {
+    let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
+    loop {
+        match select(ticker.next(), LAYOUT_CHANNEL.receive()).await {
+            Either::First(_) => {
+                core.tick().await;
+            }
+            Either::Second(event) => {
+                core.on_key_event(event);
+            }
+        };
     }
 }
 
