@@ -18,9 +18,15 @@ const MMC: Action<CustomEvent> = Action::Custom(MouseWheelClick);
 /// Ball is Wheel
 const BIW: Action<CustomEvent> = Action::Custom(BallIsWheel);
 /// Increase sensor CPI
+#[cfg(feature = "cnano")]
 const INC: Action<CustomEvent> = Action::Custom(IncreaseCpi);
+#[cfg(feature = "dilemma")]
+const INC: Action<CustomEvent> = Action::NoOp;
 /// Decrease sensor CPI
+#[cfg(feature = "cnano")]
 const DEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
+#[cfg(feature = "dilemma")]
+const DEC: Action<CustomEvent> = Action::NoOp;
 
 /// RGB LED control
 const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
