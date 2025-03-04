@@ -9,6 +9,8 @@ use crate::serde::Error as SerdeError;
 pub const NUM_LEDS: usize = 18;
 #[cfg(feature = "dilemma")]
 pub const NUM_LEDS: usize = 36;
+/// Number of underglow LEDs
+pub const UNDERGLOW_LEDS: usize = 18;
 /// Keyboard matrix rows
 pub const ROWS: usize = 4;
 /// Keyboard matrix columns
@@ -243,17 +245,25 @@ impl RgbAnim {
         }
     }
 
+    /// Reset the leds
+    fn reset(&mut self) {
+        for led in self.led_data.iter_mut() {
+            *led = RGB8::default();
+        }
+    }
+
     /// Set color of all LEDs
     fn fill_color(&mut self, color: RGB8) {
-        for led in self.led_data.iter_mut() {
+        for led in self.led_data.iter_mut().take(UNDERGLOW_LEDS) {
             *led = color;
         }
     }
 
     /// Tick the wheel animation
     fn tick_wheel(&mut self) {
-        for (i, led) in self.led_data.iter_mut().enumerate().take(NUM_LEDS) {
-            *led = wheel((((i * 256) as u16 / NUM_LEDS as u16 + self.frame as u16) & 255) as u8);
+        for (i, led) in self.led_data.iter_mut().enumerate().take(UNDERGLOW_LEDS) {
+            *led =
+                wheel((((i * 256) as u16 / UNDERGLOW_LEDS as u16 + self.frame as u16) & 255) as u8);
         }
     }
 
@@ -277,7 +287,7 @@ impl RgbAnim {
     /// Tick the animation
     pub fn tick(&mut self) -> &[RGB8; NUM_LEDS] {
         match self.animation {
-            RgbAnimType::Off => self.fill_color(RGB8::default()),
+            RgbAnimType::Off => self.reset(),
             RgbAnimType::SolidColor(idx) => self.fill_color(RGB8::indexed(idx)),
             RgbAnimType::Wheel => self.tick_wheel(),
             RgbAnimType::Pulse => {
@@ -319,7 +329,7 @@ impl RgbAnim {
         // Reset the frame
         self.frame = 0;
         // Shutdown the leds
-        self.fill_color(RGB8::default());
+        self.reset();
         let anim = if let Some(saved_animation) = self.saved_animation {
             saved_animation
         } else {
@@ -372,7 +382,7 @@ impl RgbAnim {
             self.saved_animation = Some(animation);
         }
         self.frame = 0;
-        self.fill_color(RGB8::default());
+        self.reset();
     }
 
     /// Set the color of all leds to a solid color, temporarily
