@@ -265,7 +265,8 @@ impl HidRequestHandler<'_> {
 }
 
 /// Loop to read HID KeyboardReport reports from the channel and send them over USB
-pub async fn hid_kb_writer_handler<'a>(mut writer: HidWriter<'a, 'a>) {
+#[embassy_executor::task]
+pub async fn hid_kb_writer_handler(mut writer: HidWriter<'static, 'static>) {
     loop {
         let hid_report = HID_KB_CHANNEL.receive().await;
         if is_host() {

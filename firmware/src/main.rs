@@ -16,7 +16,6 @@ use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_rp::usb::{Driver, InterruptHandler as USBInterruptHandler};
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, HidWriter, State};
 use embassy_usb::Builder;
-use futures::future;
 use {defmt_rtt as _, panic_probe as _};
 
 /// Layout events processing
@@ -138,7 +137,7 @@ async fn main(spawner: Spawner) {
     let hid_kb_reader_fut = async {
         hid_kb_reader.run(false, &mut request_handler).await;
     };
-    let hid_kb_writer_fut = hid_kb_writer_handler(hid_kb_writer);
+    spawner.must_spawn(hid_kb_writer_handler(hid_kb_writer));
 
     // Build the builder.
     spawner.must_spawn(usb::run(builder));
@@ -232,5 +231,5 @@ async fn main(spawner: Spawner) {
     }
 
     defmt::info!("let's go!");
-    future::join(hid_kb_reader_fut, hid_kb_writer_fut).await;
+    hid_kb_reader_fut.await;
 }
