@@ -92,32 +92,44 @@ impl RGB8 {
     }
 }
 
+/// No color
+const NO_COLOR: RGB8 = RGB8::default();
+/// Orange color, used for RAISE layer
+const ORANGE_COLOR: RGB8 = RGB8::new(0x40, 0x10, 0x00);
+/// Green color, used for LOWER layer
+const GREEN_COLOR: RGB8 = RGB8::new(0x00, 0x40, 0x00);
+/// Purple color, used for MISC layer
+const PURPLE_COLOR: RGB8 = RGB8::new(0x40, 0, 0x10);
+/// Blue color, used for NUMBERS layer
+const BLUE_COLOR: RGB8 = RGB8::new(0x00, 0x00, 0x40);
+/// Red color, used for TMUX layer
+const RED_COLOR: RGB8 = RGB8::new(0x07, 0, 0);
+/// Gray color, used for GAMING layer
+const GRAY_COLOR: RGB8 = RGB8::new(0x07, 0x07, 0x07);
+/// Beige color, used for CAPS layer
+const BEIGE_COLOR: RGB8 = RGB8::new(0x0f, 0x0f, 0x00);
+/// Yellow color, used for QWERTY layer
+const YELLOW_COLOR: RGB8 = RGB8::new(0x40, 0x30, 0x00);
+/// Dark red color, used for MOUSE layer
+const DARK_RED_COLOR: RGB8 = RGB8::new(0x40, 0, 0);
+/// White color, used for ERROR layer
+const WHITE_COLOR: RGB8 = RGB8::new(0xff, 0xff, 0xff);
+
 /// Indexed colors
 const INDEXED_COLORS: [RGB8; 11] = [
-    // No color
-    RGB8::default(),
-    // 1/ orange, RAISE
-    RGB8::new(0x40, 0x10, 0x00),
-    // 2/ green, LOWER
-    RGB8::new(0x00, 0x40, 0x00),
-    // 3/ purple, MISC
-    RGB8::new(0x40, 0, 0x10),
-    // 4/ blue, NUMBERS
-    RGB8::new(0x00, 0x00, 0x40),
-    // 5/ red, TMUX
-    RGB8::new(0x07, 0x00, 0x00),
-    // 6/ gray, GAMING
-    RGB8::new(0x07, 0x07, 0x07),
-    // 7/ beige, CAPS
-    RGB8::new(0x0f, 0x0f, 0x00),
-    // 8/ yellow, QWERTY
-    RGB8::new(0x40, 0x30, 0x00),
-    // 9/ dark red, MOUSE
-    RGB8::new(0x40, 0, 0),
-    // 10/ white, ERROR
-    RGB8::new(0xff, 0xff, 0xff),
+    NO_COLOR,
+    ORANGE_COLOR,   // 1/ orange, RAISE
+    GREEN_COLOR,    // 2/ green, LOWER
+    PURPLE_COLOR,   // 3/ purple, MISC
+    BLUE_COLOR,     // 4/ blue, NUMBERS
+    RED_COLOR,      // 5/ red, TMUX
+    GRAY_COLOR,     // 6/ gray, GAMING
+    BEIGE_COLOR,    // 7/ beige, CAPS
+    YELLOW_COLOR,   // 8/ yellow, QWERTY
+    DARK_RED_COLOR, // 9/ dark red, MOUSE
+    WHITE_COLOR,    // 10/ white, ERROR
 ];
-/// Default color: red
+/// Default color: dark red
 const DEFAULT_COLOR_INDEX: u8 = 9;
 /// Error color: orange
 pub const ERROR_COLOR_INDEX: u8 = 10;
