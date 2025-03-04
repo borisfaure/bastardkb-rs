@@ -116,7 +116,7 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
 #[embassy_executor::task]
 pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS>, is_right: bool) {
     // Loop forever making RGB values and pushing them out to the WS2812.
-    let mut ticker = Ticker::every(Duration::from_hz(30));
+    let mut ticker = Ticker::every(Duration::from_hz(24));
 
     let mut anim = RgbAnim::new(is_right, clocks::rosc_freq());
     loop {
