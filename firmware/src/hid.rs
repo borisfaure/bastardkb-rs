@@ -203,7 +203,7 @@ impl RequestHandler for HidRequestHandler<'_> {
         info!("Set report for {:?}: {=[u8]}", id, data);
         if let ReportId::Out(0) = id {
             self.num_lock(data[0] & 1 != 0);
-            self.caps_lock(data[0] & 1 << 1 != 0);
+            self.caps_lock(data[0] & (1 << 1) != 0);
         }
         OutResponse::Accepted
     }

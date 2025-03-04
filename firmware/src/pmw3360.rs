@@ -180,8 +180,8 @@ impl<'a, I: SpiInstance, M: Mode> Pmw3360<'a, I, M> {
         //combine the register values
         let mut data = BurstData {
             motion: (buf[0] & 0x80) != 0,
-            dy: (buf[3] as i16) << 8 | (buf[2] as i16),
-            dx: (buf[5] as i16) << 8 | (buf[4] as i16),
+            dy: ((buf[3] as i16) << 8) | (buf[2] as i16),
+            dx: ((buf[5] as i16) << 8) | (buf[4] as i16),
         };
         if buf[0] & 0b111 != 0 {
             defmt::error!("Motion burst error");
