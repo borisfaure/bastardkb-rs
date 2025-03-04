@@ -180,18 +180,34 @@ fn wheel(mut wheel_pos: u8) -> RGB8 {
 }
 
 /// Index of leds on the right side
+#[cfg(feature = "cnano")]
 const MATRIX_LED_RIGHT: [[usize; COLS]; ROWS] = [
     [2, 3, 8, 9, 12],
     [1, 4, 7, 10, 13],
     [0, 5, 6, 11, 14],
     [255, 255, 255, 15, 16],
 ];
+#[cfg(feature = "dilemma")]
+const MATRIX_LED_RIGHT: [[usize; COLS]; ROWS] = [
+    [22, 21, 20, 19, 18],
+    [23, 24, 25, 26, 27],
+    [32, 31, 30, 29, 28],
+    [99, 99, 99, 34, 35],
+];
 /// Index of leds on the left side
+#[cfg(feature = "cnano")]
 const MATRIX_LED_LEFT: [[usize; COLS]; ROWS] = [
     [2, 3, 8, 9, 12],
     [1, 4, 7, 10, 13],
     [0, 5, 6, 11, 14],
     [15, 16, 17, 255, 255],
+];
+#[cfg(feature = "dilemma")]
+const MATRIX_LED_LEFT: [[usize; COLS]; ROWS] = [
+    [22, 21, 20, 19, 18],
+    [23, 24, 25, 26, 27],
+    [32, 31, 30, 29, 28],
+    [99, 99, 33, 34, 35],
 ];
 
 ///>>> from math import sin, pi; [int(sin(x/128.0*pi)**4*255) for x in range(128)]
