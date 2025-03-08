@@ -1,9 +1,9 @@
 use crate::hid::{KeyboardReport, HID_KB_CHANNEL};
 use crate::mouse::MouseHandler;
-#[cfg(feature = "cnano")]
-use crate::pmw3360::{SensorCommand, SENSOR_CMD_CHANNEL};
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use crate::side::SIDE_CHANNEL;
+#[cfg(feature = "cnano")]
+use crate::trackball::{SensorCommand, SENSOR_CMD_CHANNEL};
 use embassy_futures::select::{select, Either};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;

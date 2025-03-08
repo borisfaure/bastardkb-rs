@@ -4,7 +4,7 @@
 use crate::hid::{hid_kb_writer_handler, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR};
 use crate::keys::Matrix;
 #[cfg(feature = "cnano")]
-use crate::pmw3360::Pmw3360;
+use crate::trackball::Trackball;
 use cortex_m::singleton;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
@@ -29,13 +29,13 @@ mod hid;
 mod keys;
 /// Mouse handling
 mod mouse;
-/// PMW3360 sensor
-#[cfg(feature = "cnano")]
-mod pmw3360;
 /// RGB LEDs
 mod rgb_leds;
 /// Handling the other half of the keyboard
 mod side;
+/// Trackball handling
+#[cfg(feature = "cnano")]
+mod trackball;
 /// USB handling
 mod usb;
 
@@ -225,9 +225,9 @@ async fn main(spawner: Spawner) {
         spi_config.polarity = Polarity::IdleHigh;
         spi_config.phase = Phase::CaptureOnSecondTransition;
         let ball_spi = Spi::new(p.SPI0, sclk, mosi, miso, tx_dma, rx_dma, spi_config);
-        let ball = Pmw3360::new(ball_spi, cs);
+        let ball = Trackball::new(ball_spi, cs);
 
-        spawner.must_spawn(pmw3360::run(ball));
+        spawner.must_spawn(trackball::run(ball));
     }
 
     defmt::info!("let's go!");
