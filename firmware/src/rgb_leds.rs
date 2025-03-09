@@ -8,7 +8,7 @@ use embassy_rp::pio::{
     StateMachine,
 };
 use embassy_rp::{clocks, into_ref, Peripheral, PeripheralRef};
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
@@ -19,9 +19,9 @@ use utils::serde::Event;
 use {defmt_rtt as _, panic_probe as _};
 
 /// Number of events in the channel from keys
-const NB_EVENTS: usize = 64;
+const NB_EVENTS: usize = 8;
 /// Channel to send `keyberon::layout::event` events to the layout handler
-pub static RGB_CHANNEL: Channel<CriticalSectionRawMutex, KbEvent, NB_EVENTS> = Channel::new();
+pub static RGB_CHANNEL: Channel<ThreadModeRawMutex, KbEvent, NB_EVENTS> = Channel::new();
 
 /// Animation commands
 #[derive(Debug, defmt::Format)]
@@ -39,7 +39,7 @@ pub enum AnimCommand {
 }
 
 /// Channel to change the animation of the RGB LEDs
-pub static ANIM_CHANNEL: Channel<CriticalSectionRawMutex, AnimCommand, NB_EVENTS> = Channel::new();
+pub static ANIM_CHANNEL: Channel<ThreadModeRawMutex, AnimCommand, NB_EVENTS> = Channel::new();
 
 /// WS2812 driver
 pub struct Ws2812<'d, P: Instance, const S: usize, const N: usize> {

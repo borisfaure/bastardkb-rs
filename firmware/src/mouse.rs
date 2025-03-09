@@ -1,6 +1,6 @@
 use crate::device::is_host;
 use crate::hid::MouseReport;
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 
 /// Mouse move event
 #[derive(Debug, defmt::Format)]
@@ -14,8 +14,7 @@ pub struct MouseMove {
 /// Maximum number of movements in the channel
 pub const NB_MOVE: usize = 8;
 /// Channel to send movement reports from the sensor
-pub static MOUSE_MOVE_CHANNEL: Channel<CriticalSectionRawMutex, MouseMove, NB_MOVE> =
-    Channel::new();
+pub static MOUSE_MOVE_CHANNEL: Channel<ThreadModeRawMutex, MouseMove, NB_MOVE> = Channel::new();
 
 /// Mouse handler
 pub struct MouseHandler {

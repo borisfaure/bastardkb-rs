@@ -7,7 +7,7 @@ use crate::trackball::{SensorCommand, SENSOR_CMD_CHANNEL};
 use embassy_futures::select::{select, Either};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
 use embassy_usb::class::hid::HidWriter;
 use keyberon::key_code::KeyCode;
@@ -29,9 +29,9 @@ use crate::keymap_test::{KBLayout, LAYERS};
 /// Layout refresh rate, in ms
 const REFRESH_RATE_MS: u64 = 1;
 /// Number of events in the layout channel
-const NB_EVENTS: usize = 64;
+const NB_EVENTS: usize = 8;
 /// Channel to send `keyberon::layout::event` events to the layout handler
-pub static LAYOUT_CHANNEL: Channel<CriticalSectionRawMutex, KBEvent, NB_EVENTS> = Channel::new();
+pub static LAYOUT_CHANNEL: Channel<ThreadModeRawMutex, KBEvent, NB_EVENTS> = Channel::new();
 
 /// Custom events for the layout, mostly mouse events
 //#[allow(clippy::enum_variant_names)]

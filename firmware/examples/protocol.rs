@@ -23,7 +23,7 @@ use embassy_rp::{
         ShiftDirection, StateMachine,
     },
 };
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::{traits::ToFixed, types::U56F8};
 use futures::future;
@@ -37,9 +37,9 @@ bind_interrupts!(struct PioIrq1 {
 });
 
 /// Number of events in the channel to the other half of the keyboard
-const NB_EVENTS: usize = 64;
+const NB_EVENTS: usize = 8;
 /// Channel to send `utils::serde::event` events to the layout handler
-pub static SIDE_CHANNEL: Channel<CriticalSectionRawMutex, Event, NB_EVENTS> = Channel::new();
+pub static SIDE_CHANNEL: Channel<ThreadModeRawMutex, Event, NB_EVENTS> = Channel::new();
 
 const TX: usize = 0;
 const RX: usize = 1;

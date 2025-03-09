@@ -6,7 +6,7 @@ use embassy_futures::select::{select, Either};
 use embassy_rp::gpio::Output;
 use embassy_rp::peripherals::SPI0;
 use embassy_rp::spi::{Async, Error as SpiError, Instance as SpiInstance, Mode, Spi};
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_hal::spi::SpiBus;
 
@@ -18,8 +18,7 @@ use firmware::Register;
 pub const NB_CMD: usize = 64;
 
 /// Channel to send commands to the sensor
-pub static SENSOR_CMD_CHANNEL: Channel<CriticalSectionRawMutex, SensorCommand, NB_CMD> =
-    Channel::new();
+pub static SENSOR_CMD_CHANNEL: Channel<ThreadModeRawMutex, SensorCommand, NB_CMD> = Channel::new();
 
 const DEFAULT_CPI: u16 = 800;
 
