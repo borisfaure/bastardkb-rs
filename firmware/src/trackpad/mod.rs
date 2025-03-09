@@ -1,4 +1,5 @@
-use defmt::{error, info};
+use crate::mouse::{MouseMove, MOUSE_MOVE_CHANNEL};
+use defmt::error;
 use embassy_executor::Spawner;
 use embassy_rp::{
     dma::AnyChannel,
@@ -12,6 +13,9 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 pub mod driver;
 mod glide;
 pub mod regs;
+
+/// Sensor refresh rate, in ms
+const REFRESH_RATE_MS: u64 = 10;
 
 type TrackpadSpi = ExclusiveDevice<Spi<'static, SPI0, Async>, Output<'static>, embassy_time::Delay>;
 
@@ -43,12 +47,26 @@ async fn trackpad_task(spi: TrackpadSpi) {
         return;
     }
 
-    let mut ticker = Ticker::every(Duration::from_hz(250));
+    let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
 
+    let mut last_dx = 0_i8;
+    let mut last_dy = 0_i8;
     loop {
         match trackpad.get_report().await {
-            Ok(Some(report)) => {
-                info!("trackpad report: {:?}", report);
+            Ok(Some((dx, dy))) => {
+                if last_dx != dx || last_dy != dy {
+                    if MOUSE_MOVE_CHANNEL.is_full() {
+                        defmt::error!("Mouse move channel is full");
+                    }
+                    last_dx = dx;
+                    last_dy = dy;
+                    MOUSE_MOVE_CHANNEL
+                        .send(MouseMove {
+                            dx: dx.into(),
+                            dy: dy.into(),
+                        })
+                        .await;
+                }
             }
             Err(_e) => {
                 error!("Failed to get a trackpad report");
