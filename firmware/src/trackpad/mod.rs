@@ -36,13 +36,7 @@ pub fn init(
 
 #[embassy_executor::task]
 async fn trackpad_task(spi: TrackpadSpi) {
-    let mut trackpad = driver::Trackpad::<_, 35>::new(
-        spi,
-        driver::PositionMode::Absolute,
-        driver::Overlay::Curved,
-        driver::TransformMode::Rotate90,
-        None,
-    );
+    let mut trackpad = driver::Trackpad::<_, 35>::new(spi, None);
 
     if let Err(_e) = trackpad.init().await {
         error!("Couldn't init trackpad");

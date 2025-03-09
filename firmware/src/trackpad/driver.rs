@@ -8,59 +8,19 @@ use super::{
 
 pub struct Trackpad<SPI, const DIAMETER: u32> {
     spi: SPI,
-    position_mode: PositionMode,
-    overlay: Overlay,
-    transform: TransformMode,
-    relative_remainder: (i16, i16),
     glide: Option<GlideContext>,
     last_pos: Option<(u16, u16)>,
     scale: u16,
     last_scale: u16,
 }
 
-pub enum TransformMode {
-    Normal,
-    Rotate90,
-    Rotate180,
-    Rotate270,
-}
-
-impl TransformMode {
-    fn transform(&self, x: i8, y: i8) -> (i8, i8) {
-        match self {
-            TransformMode::Normal => (x, y),
-            TransformMode::Rotate90 => (y, -x),
-            TransformMode::Rotate180 => (-x, -y),
-            TransformMode::Rotate270 => (-y, x),
-        }
-    }
-}
-
-pub enum Overlay {
-    Curved,
-    Other,
-}
-
-pub enum PositionMode {
-    Absolute,
-    Relative,
-}
-
 #[derive(Debug, defmt::Format)]
-pub enum Reading {
-    Absolute {
-        x: u16,
-        y: u16,
-        z: u16,
-        buttons: u8,
-        touch_down: bool,
-    },
-    Relative {
-        dx: i16,
-        dy: i16,
-        wheel_count: i8,
-        buttons: u8,
-    },
+pub struct Reading {
+    x: u16,
+    y: u16,
+    z: u16,
+    buttons: u8,
+    touch_down: bool,
 }
 
 impl Reading {
@@ -71,9 +31,6 @@ impl Reading {
     const ABS_Y_MIN: u16 = 63;
     const ABS_Y_MAX: u16 = 1471;
     const ABS_Y_RANGE: u16 = Self::ABS_Y_MAX - Self::ABS_Y_MIN;
-
-    const REL_X_RANGE: u16 = 256;
-    const REL_Y_RANGE: u16 = 256;
 
     fn resolve_abs(x: u16, y: u16) -> (u16, u16) {
         let x = x.clamp(Self::ABS_X_MIN, Self::ABS_X_MAX) - Self::ABS_X_MIN;
@@ -92,28 +49,14 @@ fn saturating_i16_to_i8(v: i16) -> i8 {
 }
 
 impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
-    pub fn new(
-        spi: SPI,
-        position_mode: PositionMode,
-        overlay: Overlay,
-        transform: TransformMode,
-        glide_config: Option<GlideConfig>,
-    ) -> Self {
+    pub fn new(spi: SPI, glide_config: Option<GlideConfig>) -> Self {
         Self {
             spi,
-            position_mode,
-            overlay,
-            transform,
             glide: glide_config.map(GlideContext::new),
-            relative_remainder: (0, 0),
             last_pos: None,
             scale: ((800 * DIAMETER * 10) / 254) as u16,
             last_scale: 0,
         }
-    }
-
-    pub fn set_scale(&mut self, cpi: u16) {
-        self.scale = ((cpi as u32 * DIAMETER * 10) / 254) as u16;
     }
 
     pub async fn init(&mut self) -> Result<(), SPI::Error> {
@@ -128,45 +71,18 @@ impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
 
         self.clear_flags().await?;
 
-        match self.position_mode {
-            PositionMode::Absolute => {
-                self.rap_write_reg(regs::FeedConfig2::def()).await?;
-                self.rap_write_reg(regs::FeedConfig1::def().with_data_type_relo0_abs1(true))
-                    .await?;
-                self.rap_write_reg(regs::ZIdle(5)).await?;
-            }
-            PositionMode::Relative => {
-                let cfg = regs::FeedConfig2::new()
-                    .with_glide_extend_disable(true)
-                    .with_intellimouse_mode(true)
-                    .with_all_tap_disable(true)
-                    .with_secondary_tap_disable(true)
-                    .with_scroll_disable(true);
-
-                self.rap_write_reg(cfg).await?;
-                self.rap_write_reg(regs::FeedConfig1::def()).await?;
-            }
-        }
+        // Absolute mode
+        self.rap_write_reg(regs::FeedConfig2::def()).await?;
+        self.rap_write_reg(regs::FeedConfig1::def().with_data_type_relo0_abs1(true))
+            .await?;
+        self.rap_write_reg(regs::ZIdle(5)).await?;
 
         self.rap_write_reg(regs::SampleRate::from_byte(regs::SampleRate::SPS_100))
             .await?;
-        // self.era_write_reg(regs::TrackTimerReload::from_byte(
-        //     regs::TrackTimerReload::SPS_200,
-        // ))
-        // .await?;
 
-        let should_calibrate = match self.overlay {
-            Overlay::Curved => {
-                self.set_adc_attenuation(regs::AdcAttenuation::X2).await?;
-                self.tune_edge_sensivity().await?;
-                true
-            }
-            Overlay::Other => self.set_adc_attenuation(regs::AdcAttenuation::X2).await?,
-        };
-
-        if should_calibrate {
-            self.calibrate().await?;
-        }
+        self.set_adc_attenuation(regs::AdcAttenuation::X2).await?;
+        self.tune_edge_sensivity().await?;
+        self.calibrate().await?;
 
         self.set_feed_enable(true).await?;
 
@@ -187,57 +103,39 @@ impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
 
         let (mut report_x, mut report_y) = (0, 0);
 
-        match reading {
-            Reading::Absolute {
-                x,
-                y,
-                z,
-                buttons: _,
-                touch_down,
-            } => {
-                if !touch_down {
-                    self.last_pos = None;
-                }
+        if !reading.touch_down {
+            self.last_pos = None;
+        }
 
-                // crate::log::info!("handling report: {:?} last: {:?}", reading, self.last_pos);
+        // crate::log::info!("handling report: {:?} last: {:?}", reading, self.last_pos);
 
-                if self.last_scale != 0 && self.last_scale == self.scale && x != 0 && y != 0 {
-                    if let Some((last_x, last_y)) = self.last_pos {
-                        report_x = saturating_i16_to_i8(x as i16 - last_x as i16);
-                        report_y = saturating_i16_to_i8(y as i16 - last_y as i16);
-                    }
-                }
-
-                if touch_down {
-                    self.last_pos = Some((x, y));
-                    self.last_scale = self.scale;
-                }
-
-                if let Some(glide_ctx) = &mut self.glide {
-                    if touch_down {
-                        glide_ctx.update(report_x as i16, report_y as i16, z)
-                    }
-
-                    if glide_report.is_none() {
-                        if let Some(report) = glide_ctx.start() {
-                            report_x = report.dx;
-                            report_y = report.dy;
-                        }
-                    }
-                }
-            }
-            Reading::Relative {
-                dx,
-                dy,
-                wheel_count: _,
-                buttons: _,
-            } => {
-                report_x = saturating_i16_to_i8(dx);
-                report_y = saturating_i16_to_i8(dy);
+        if self.last_scale != 0 && self.last_scale == self.scale && reading.x != 0 && reading.y != 0
+        {
+            if let Some((last_x, last_y)) = self.last_pos {
+                report_x = saturating_i16_to_i8(reading.x as i16 - last_x as i16);
+                report_y = saturating_i16_to_i8(reading.y as i16 - last_y as i16);
             }
         }
 
-        Ok(Some(self.transform.transform(report_x, report_y)))
+        if reading.touch_down {
+            self.last_pos = Some((reading.x, reading.y));
+            self.last_scale = self.scale;
+        }
+
+        if let Some(glide_ctx) = &mut self.glide {
+            if reading.touch_down {
+                glide_ctx.update(report_x as i16, report_y as i16, reading.z)
+            }
+
+            if glide_report.is_none() {
+                if let Some(report) = glide_ctx.start() {
+                    report_x = report.dx;
+                    report_y = report.dy;
+                }
+            }
+        }
+
+        Ok(Some((report_y, -report_x)))
     }
 
     async fn read_data(&mut self) -> Result<Option<Reading>, SPI::Error> {
@@ -254,96 +152,34 @@ impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
 
         // crate::log::info!("read raw bytes: {:?}", data);
 
-        match self.position_mode {
-            PositionMode::Absolute => {
-                let buttons = data[0] & 0x3f;
-                let x = (data[2] as u16) | ((data[4] & 0x0F) as u16) << 8;
-                let y = (data[3] as u16) | ((data[4] & 0xF0) as u16) << 4;
-                let z = (data[5] & 0x3f) as u16;
-                let touch_down = x != 0 || y != 0;
+        let buttons = data[0] & 0x3f;
+        let x = (data[2] as u16) | ((data[4] & 0x0F) as u16) << 8;
+        let y = (data[3] as u16) | ((data[4] & 0xF0) as u16) << 4;
+        let z = (data[5] & 0x3f) as u16;
+        let touch_down = x != 0 || y != 0;
 
-                let reading = Reading::Absolute {
-                    x,
-                    y,
-                    z,
-                    buttons,
-                    touch_down,
-                };
-                Ok(Some(reading))
-            }
-            PositionMode::Relative => {
-                let buttons = data[0] & 0x07;
-
-                let dx = if (data[0] & 0x10) != 0 && data[1] != 0 {
-                    -(256i16 - data[1] as i16)
-                } else {
-                    data[1] as i16
-                };
-
-                let dy = if (data[0] & 0x20) != 0 && data[2] != 0 {
-                    256i16 - data[2] as i16
-                } else {
-                    -(data[2] as i16)
-                };
-
-                let wheel_count = i8::from_be_bytes([data[2]]);
-
-                Ok(Some(Reading::Relative {
-                    dx,
-                    dy,
-                    wheel_count,
-                    buttons,
-                }))
-            }
-        }
+        let reading = Reading {
+            x,
+            y,
+            z,
+            buttons,
+            touch_down,
+        };
+        Ok(Some(reading))
     }
 
     fn scale_reading(&mut self, reading: Reading) -> Reading {
-        match reading {
-            Reading::Absolute {
-                x,
-                y,
-                z,
-                buttons,
-                touch_down,
-            } => {
-                let (x, y) = Reading::resolve_abs(x, y);
+        let (x, y) = Reading::resolve_abs(reading.x, reading.y);
 
-                let x = (x as u32 * self.scale as u32 / Reading::ABS_X_RANGE as u32) as u16;
-                let y = (y as u32 * self.scale as u32 / Reading::ABS_Y_RANGE as u32) as u16;
+        let x = (x as u32 * self.scale as u32 / Reading::ABS_X_RANGE as u32) as u16;
+        let y = (y as u32 * self.scale as u32 / Reading::ABS_Y_RANGE as u32) as u16;
 
-                Reading::Absolute {
-                    x,
-                    y,
-                    z,
-                    buttons,
-                    touch_down,
-                }
-            }
-            Reading::Relative {
-                dx,
-                dy,
-                wheel_count,
-                buttons,
-            } => {
-                let (dx, dx_r) = num::integer::div_rem(
-                    dx as i32 * self.scale as i32 + self.relative_remainder.0 as i32,
-                    Reading::REL_X_RANGE as i32,
-                );
-                let (dy, dy_r) = num::integer::div_rem(
-                    dy as i32 * self.scale as i32 + self.relative_remainder.1 as i32,
-                    Reading::REL_Y_RANGE as i32,
-                );
-
-                self.relative_remainder = (dx_r as i16, dy_r as i16);
-
-                Reading::Relative {
-                    dx: dx as i16,
-                    dy: dy as i16,
-                    wheel_count,
-                    buttons,
-                }
-            }
+        Reading {
+            x,
+            y,
+            z: reading.z,
+            buttons: reading.buttons,
+            touch_down: reading.touch_down,
         }
     }
 }
