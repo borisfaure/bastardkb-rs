@@ -8,6 +8,8 @@ use crate::trackball::Trackball;
 use cortex_m::singleton;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
+#[cfg(feature = "dilemma")]
+use embassy_rp::dma::Channel;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIO0, PIO1, USB};
 use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
@@ -36,6 +38,9 @@ mod side;
 /// Trackball handling
 #[cfg(feature = "cnano")]
 mod trackball;
+/// Trackpad handling
+#[cfg(feature = "dilemma")]
+mod trackpad;
 /// USB handling
 mod usb;
 
@@ -228,6 +233,15 @@ async fn main(spawner: Spawner) {
         let ball = Trackball::new(ball_spi, cs);
 
         spawner.must_spawn(trackball::run(ball));
+    }
+    #[cfg(feature = "dilemma")]
+    if is_right {
+        let sclk = p.PIN_22; // B1
+        let mosi = p.PIN_23; // B2
+        let miso = p.PIN_20; // B3
+        let tx_dma = p.DMA_CH1.degrade();
+        let rx_dma = p.DMA_CH2.degrade();
+        trackpad::init(&spawner, p.SPI0, sclk, mosi, miso, p.PIN_21, tx_dma, rx_dma);
     }
 
     defmt::info!("let's go!");

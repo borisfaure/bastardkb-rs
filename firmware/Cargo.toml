@@ -36,12 +36,18 @@ keyberon = { git = "https://github.com/borisfaure/keyberon", branch = "shifted_s
 defmt = "0.3"
 defmt-rtt = "0.4"
 
+embedded-hal = "1.0"
+embedded-hal-async = "1.0"
+embedded-hal-bus = { version = "0.3", features = [ "async" ] }
+
 cortex-m = { version = "0.7.6", features = ["inline-asm"] }
 cortex-m-rt = "0.7.0"
-embedded-hal = "1.0"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 heapless = { version = "0.8", default-features = false }
 nb = "1.0"
+num = { version = "0.4", default-features = false }
+num_enum = { version = "0.7.3", default-features = false }
+bitfield-struct = "0.8.0"
 
 [dev-dependencies]
 futures = { version = "0.3.17", default-features = false, features = ["async-await"] }
