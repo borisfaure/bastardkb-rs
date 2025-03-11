@@ -199,9 +199,15 @@ impl<W: Sized + Hardware> SidesComms<W> {
                     self.protocol.queue_event(event).await;
                 }
                 Either::Second(x) => {
+                    #[cfg(feature = "cnano")]
                     self.status_led.set_low();
-                    process_event(x).await;
+                    #[cfg(feature = "dilemma")]
                     self.status_led.set_high();
+                    process_event(x).await;
+                    #[cfg(feature = "cnano")]
+                    status_led.set_high();
+                    #[cfg(feature = "dilemma")]
+                    self.status_led.set_low();
                 }
             }
         }

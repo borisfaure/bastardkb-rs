@@ -185,7 +185,10 @@ async fn main(spawner: Spawner) {
     #[cfg(feature = "dilemma")]
     let mut status_led = Output::new(p.PIN_17, Level::Low);
     // Disable the status LED on startup
+    #[cfg(feature = "cnano")]
     status_led.set_high();
+    #[cfg(feature = "dilemma")]
+    status_led.set_low();
 
     let pio1 = Pio::new(p.PIO1, PioIrq1);
     side::init(
