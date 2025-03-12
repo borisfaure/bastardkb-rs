@@ -330,6 +330,17 @@ const MDEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
 #[cfg(feature = "dilemma")]
 const MDEC: Action<CustomEvent> = Action::NoOp;
 
+/// Wheel up
+#[cfg(feature = "cnano")]
+const WHUP: Action<CustomEvent> = Action::NoOp;
+#[cfg(feature = "dilemma")]
+const WHUP: Action<CustomEvent> = Action::Custom(WheelUp);
+/// Wheel down
+#[cfg(feature = "cnano")]
+const WHDN: Action<CustomEvent> = Action::NoOp;
+#[cfg(feature = "dilemma")]
+const WHDN: Action<CustomEvent> = Action::Custom(WheelDown);
+
 /// RGB LED control
 const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
 
@@ -343,7 +354,7 @@ pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEv
 [  Q         {HT_W_W}   F          P         {HT_4_B}    {HT_4_K}   L         U  {HT_W_Y}     ;        ],
 [ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E  {HT_4_I}    {HT_C_O}  ],
 [ {HT_S_Z}   {HT_A_X}   C          D         {HT_3_V}    {HT_3_J}   H         ,  {HT_A_DOT}  {HT_S_SL} ],
-[ {VCAPS}    {VNUM}    {HT_3_ESC} {HT_1_SP}   Tab         Enter    {HT_2_BS}  n    n          n        ],
+[ {VCAPS}    {VNUM}    {HT_3_ESC} {HT_1_SP}   Tab         Enter    {HT_2_BS}  n   {WHUP}      {WHDN}   ],
     } { /* 1: LOWER */
         [ !  #  $    '(' ')'        ^  &  {S_INS}    *      ~   ],
         [ =  -  '`'  '{' '}'        n  n   PgUp    PgDown  '\\' ],
@@ -363,12 +374,12 @@ pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEv
         [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       {MINC} {MWC}   n   n   n  ],
         [ {RGB}  VolDown          Mute         VolUp         n        n     {BIW} {MLC} n {MRC}],
         [ {RST} MediaPreviousSong MediaPlayPause MediaNextSong n     {MDEC} {MWC}   n   n {RST}],
-        [  n     n                {MLC}        {MWC}      {MRC}      {MLC}  {MRC}   n   n   n  ],
+        [  n     n                {MLC}        {MWC}      {MRC}      {MLC}  {MRC}   n VolUp VolDown],
     } { /* 5: TMUX */
         [ {T_6}   {T_7} {T_8}   {T_9}   {T_0}      {T_1}   {T_2}  {T_3}   {T_4}   {T_5}   ],
         [ {T_LST}  n     n       n       n          n     {T_PRV} {T_UP}  {T_DWN} {T_NXT} ],
         [  n       n    {T_NEW} {T_CPY} {T_PST}     n       n     {T_RNM} {T_MOV} {T_PST} ],
-        [  n       n     t       t       t         {T_CMD}  n      n       n       n      ],
+        [  n       n     t       t       t         {T_CMD}  n      n      {T_NXT} {T_PRV} ],
     } { /* 6: Gaming */
         [ Q    W  E   R         T            {HT_4_Y}   U      I  {HT_W_O}     P       ],
         [ A    S  D   F         G             H         J      K   L         {HT_C_SC} ],
@@ -383,6 +394,6 @@ pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEv
 [  Q        {HT_W_W}   E       R         {HT_4_T}       {HT_4_Y}   U       I  {HT_W_O}     P        ],
 [ {HT_C_A}   S         D      {HT_5_F}    G              H         J       K   L          {HT_C_SC} ],
 [ {HT_S_Z}  {HT_A_X}   C       V         {HT_3_B}       {HT_3_N}   M       ,  {HT_A_DOT}  {HT_S_SL} ],
-[  n         n        Escape  {HT_1_SP}   Tab            Enter  {HT_2_BS}  n   n           n        ],
+[  n         n        Escape  {HT_1_SP}   Tab            Enter  {HT_2_BS}  n   {WHUP}      {WHDN}   ],
     }
 };

@@ -218,7 +218,14 @@ async fn main(spawner: Spawner) {
     let core = Core::new(hid_mouse, is_right);
     spawner.must_spawn(core::run(core));
 
-    keys::init(&spawner, matrix, is_right);
+    #[cfg(feature = "dilemma")]
+    let encoder = Some((
+        Input::new(p.PIN_24, Pull::Up),
+        Input::new(p.PIN_25, Pull::Up),
+    ));
+    #[cfg(feature = "cnano")]
+    let encoder = None;
+    keys::init(&spawner, matrix, encoder, is_right);
 
     #[cfg(feature = "cnano")]
     if is_right {

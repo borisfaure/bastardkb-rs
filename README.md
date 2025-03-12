@@ -33,6 +33,7 @@ The firmware is based on the [Keyberon library](https://github.com/TeXitoi/keybe
 - RGB underglow on per key basis
 - Trackball support for the Charybdis Nano keyboard
 - Switch to bootloader mode to easily upgrade firmware by pressing a key combination
+- Right encoder on the Dilemma keyboard
 
 ## On CapsLock & NumLock support
 
@@ -69,6 +70,7 @@ are lid when a layer is active and the mode is not `Off`.
 - Mouse acceleration
 - Combos
 - One Shot Actions
+- Curve on encoder: more steps on the rotation would scroll further
 - ...
 
 

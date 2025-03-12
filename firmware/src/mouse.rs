@@ -33,6 +33,11 @@ pub struct MouseHandler {
     /// Direction Y
     dy: i16,
 
+    /// Wheel movement
+    /// Positive is up, negative is Down
+    /// 0 is no movement, reset on every tick
+    wheel: i8,
+
     /// Whether the state has changed
     changed: bool,
 }
@@ -59,6 +64,7 @@ impl MouseHandler {
             ball_is_wheel: false,
             dx: 0,
             dy: 0,
+            wheel: 0,
             changed: false,
         }
     }
@@ -87,6 +93,12 @@ impl MouseHandler {
         self.changed = true;
     }
 
+    /// On wheel
+    pub fn on_wheel(&mut self, is_up: bool) {
+        self.wheel = if is_up { 1 } else { -1 };
+        self.changed = true;
+    }
+
     /// Handle a mouse movement event
     fn handle_move_event(&mut self, MouseMove { dx, dy }: MouseMove) {
         self.dx = dx;
@@ -103,6 +115,7 @@ impl MouseHandler {
         if self.changed && is_host() {
             self.changed = false;
             let hid_report = self.generate_hid_report();
+            self.wheel = 0;
             Some(hid_report)
         } else {
             None
@@ -130,6 +143,7 @@ impl MouseHandler {
             if self.wheel_click {
                 report.buttons |= 4;
             }
+            report.wheel = self.wheel;
         }
         report
     }

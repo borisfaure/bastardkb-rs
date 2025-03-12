@@ -59,9 +59,18 @@ impl<'a> Matrix<'a> {
 
 /// Loop that scans the keyboard matrix
 #[embassy_executor::task]
-async fn matrix_scanner(mut matrix: Matrix<'static>, is_right: bool) {
+async fn matrix_scanner(
+    mut matrix: Matrix<'static>,
+    encoder_pins: Option<(Input<'static>, Input<'static>)>,
+    is_right: bool,
+) {
     let mut ticker = Ticker::every(Duration::from_hz(REFRESH_RATE.into()));
     let mut debouncer = Debouncer::new(matrix_state_new(), matrix_state_new(), NB_BOUNCE);
+
+    #[cfg(feature = "dilemma")]
+    let (encoder_pin_a, encoder_pin_b) = encoder_pins.unwrap();
+    #[cfg(feature = "dilemma")]
+    let mut last_pin_a = encoder_pin_a.is_high();
 
     loop {
         let transform = if is_right {
@@ -145,11 +154,37 @@ async fn matrix_scanner(mut matrix: Matrix<'static>, is_right: bool) {
                 }
             }
         }
+        #[cfg(feature = "dilemma")]
+        if is_right && is_host {
+            // Read the current state of the pins
+            let current_a = encoder_pin_a.is_high();
+            let current_b = encoder_pin_b.is_high();
+
+            // Check for a transition on pin A
+            if current_a != last_pin_a {
+                if LAYOUT_CHANNEL.is_full() {
+                    defmt::error!("Layout channel is full");
+                }
+                if current_b != current_a {
+                    LAYOUT_CHANNEL.send(KBEvent::Press(3, 8)).await;
+                    LAYOUT_CHANNEL.send(KBEvent::Release(3, 8)).await;
+                } else {
+                    LAYOUT_CHANNEL.send(KBEvent::Press(3, 9)).await;
+                    LAYOUT_CHANNEL.send(KBEvent::Release(3, 9)).await;
+                }
+                last_pin_a = current_a;
+            }
+        }
 
         ticker.next().await;
     }
 }
 
-pub fn init(spawner: &Spawner, matrix: Matrix<'static>, is_right: bool) {
-    spawner.must_spawn(matrix_scanner(matrix, is_right));
+pub fn init(
+    spawner: &Spawner,
+    matrix: Matrix<'static>,
+    encoder_pins: Option<(Input<'static>, Input<'static>)>,
+    is_right: bool,
+) {
+    spawner.must_spawn(matrix_scanner(matrix, encoder_pins, is_right));
 }

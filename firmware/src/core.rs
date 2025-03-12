@@ -55,6 +55,12 @@ pub enum CustomEvent {
     NextLedAnimation,
     /// Reset to usb mass storage
     ResetToUsbMassStorage,
+    /// Wheel up
+    #[cfg(feature = "dilemma")]
+    WheelUp,
+    /// Wheel down
+    #[cfg(feature = "dilemma")]
+    WheelDown,
 }
 
 /// Debug tick counter: every 5s
@@ -202,6 +208,19 @@ impl<'a> Core<'a> {
             KbCustomEvent::Release(CustomEvent::BallIsWheel) => {
                 self.mouse.on_ball_is_wheel(false);
             }
+            #[cfg(feature = "dilemma")]
+            KbCustomEvent::Press(CustomEvent::WheelUp) => {
+                self.mouse.on_wheel(true);
+            }
+            #[cfg(feature = "dilemma")]
+            KbCustomEvent::Release(CustomEvent::WheelUp) => {}
+            #[cfg(feature = "dilemma")]
+            KbCustomEvent::Press(CustomEvent::WheelDown) => {
+                self.mouse.on_wheel(false);
+            }
+            #[cfg(feature = "dilemma")]
+            KbCustomEvent::Release(CustomEvent::WheelDown) => {}
+
             #[cfg(feature = "cnano")]
             KbCustomEvent::Press(CustomEvent::IncreaseCpi) => {
                 if SENSOR_CMD_CHANNEL.is_full() {
