@@ -27,6 +27,16 @@ const INC: Action<CustomEvent> = Action::NoOp;
 const DEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
 #[cfg(feature = "dilemma")]
 const DEC: Action<CustomEvent> = Action::NoOp;
+/// Wheel up
+#[cfg(feature = "cnano")]
+const WHUP: Action<CustomEvent> = Action::NoOp;
+#[cfg(feature = "dilemma")]
+const WHUP: Action<CustomEvent> = Action::Custom(WheelUp);
+/// Wheel down
+#[cfg(feature = "cnano")]
+const WHDN: Action<CustomEvent> = Action::NoOp;
+#[cfg(feature = "dilemma")]
+const WHDN: Action<CustomEvent> = Action::Custom(WheelDown);
 
 /// RGB LED control
 const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
@@ -44,7 +54,7 @@ pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEv
     } { // Unreachable
         [ n  n  n  n  n      n  n  n  n  n ],
         [ n  n  n  n  n      n  n  n  n  n ],
-        [ n  n  n  n  n      n  n  n  n  n ],
-        [ n {BIW} {INC} {DEC} {MLC}      {MRC} {MMC} {RGB} n {RST} ],
+        [ {RST} n n n n      n  n  n  n  n ],
+        [ n {BIW} {INC} {DEC} {MLC}      {MRC} {MMC} {RGB} {WHUP} {WHDN} ],
     }
 };

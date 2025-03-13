@@ -51,6 +51,16 @@ const DEC: Action<CustomEvent> = Action::NoOp;
 const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
 /// Reset to USB Mass Storage
 const RST: Action<CustomEvent> = Action::Custom(ResetToUsbMassStorage);
+/// Wheel up
+#[cfg(feature = "cnano")]
+const WHUP: Action<CustomEvent> = Action::NoOp;
+#[cfg(feature = "dilemma")]
+const WHUP: Action<CustomEvent> = Action::Custom(WheelUp);
+/// Wheel down
+#[cfg(feature = "cnano")]
+const WHDN: Action<CustomEvent> = Action::NoOp;
+#[cfg(feature = "dilemma")]
+const WHDN: Action<CustomEvent> = Action::Custom(WheelDown);
 
 #[rustfmt::skip]
 /// Layout
@@ -63,7 +73,7 @@ pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEv
     } { /* 1: LOWER */
         [  !   #  $    '(' ')'     ^       &       |       *    {RST} ],
         [ {AA}  -  '`'  '{' '}'    Left    Down    Up     Right  '\\' ],
-        [  @   &  %    '[' ']'    {RGB}    n       Home   '\''   '"'  ],
+        [ {WHUP} {WHDN} n  n  n    {RGB}   n       n      n      n    ],
         [ {INC} {DEC} {BIW} n  RAlt Escape  Delete  {MLC} {MMC} {MRC} ],
     }
 };
