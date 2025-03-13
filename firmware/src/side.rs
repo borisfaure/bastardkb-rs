@@ -205,7 +205,7 @@ impl<W: Sized + Hardware> SidesComms<W> {
                     self.status_led.set_high();
                     process_event(x).await;
                     #[cfg(feature = "cnano")]
-                    status_led.set_high();
+                    self.status_led.set_high();
                     #[cfg(feature = "dilemma")]
                     self.status_led.set_low();
                 }
