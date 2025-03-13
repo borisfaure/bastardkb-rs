@@ -67,6 +67,11 @@ async fn matrix_scanner(
     let mut ticker = Ticker::every(Duration::from_hz(REFRESH_RATE.into()));
     let mut debouncer = Debouncer::new(matrix_state_new(), matrix_state_new(), NB_BOUNCE);
 
+    #[cfg(feature = "cnano")]
+    if encoder_pins.is_some() {
+        defmt::error!("Encoder pins are not supported on the Cnano");
+    }
+
     #[cfg(feature = "dilemma")]
     let (encoder_pin_a, encoder_pin_b) = encoder_pins.unwrap();
     #[cfg(feature = "dilemma")]
