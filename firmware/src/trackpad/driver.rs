@@ -153,8 +153,8 @@ impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
         // crate::log::info!("read raw bytes: {:?}", data);
 
         let buttons = data[0] & 0x3f;
-        let x = (data[2] as u16) | ((data[4] & 0x0F) as u16) << 8;
-        let y = (data[3] as u16) | ((data[4] & 0xF0) as u16) << 4;
+        let x = (data[2] as u16) | (((data[4] & 0x0F) as u16) << 8);
+        let y = (data[3] as u16) | (((data[4] & 0xF0) as u16) << 4);
         let z = (data[5] & 0x3f) as u16;
         let touch_down = x != 0 || y != 0;
 
