@@ -246,12 +246,15 @@ async fn main(spawner: Spawner) {
     }
     #[cfg(feature = "dilemma")]
     if is_right {
-        let sclk = p.PIN_22; // B1
-        let mosi = p.PIN_23; // B2
-        let miso = p.PIN_20; // B3
+        let pins = trackpad::TrackpadPins {
+            clk: p.PIN_22,  // B1
+            mosi: p.PIN_23, // B2
+            miso: p.PIN_20, // B3
+            cs: p.PIN_21,   // B4
+        };
         let tx_dma = p.DMA_CH1.degrade();
         let rx_dma = p.DMA_CH2.degrade();
-        trackpad::init(&spawner, p.SPI0, sclk, mosi, miso, p.PIN_21, tx_dma, rx_dma);
+        trackpad::init(&spawner, p.SPI0, pins, tx_dma, rx_dma);
     }
 
     defmt::info!("let's go!");

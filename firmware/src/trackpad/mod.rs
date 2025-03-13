@@ -19,21 +19,29 @@ const REFRESH_RATE_MS: u64 = 10;
 
 type TrackpadSpi = ExclusiveDevice<Spi<'static, SPI0, Async>, Output<'static>, embassy_time::Delay>;
 
+pub struct TrackpadPins {
+    pub clk: PIN_22,
+    pub mosi: PIN_23,
+    pub miso: PIN_20,
+    pub cs: PIN_21,
+}
+
 pub fn init(
     spawner: &Spawner,
     spi: SPI0,
-    clk: PIN_22,
-    mosi: PIN_23,
-    miso: PIN_20,
-    cs: PIN_21,
+    pins: TrackpadPins,
     tx_dma: AnyChannel,
     rx_dma: AnyChannel,
 ) {
     let mut config = spi::Config::default();
     config.phase = spi::Phase::CaptureOnSecondTransition;
-    let spi = Spi::new(spi, clk, mosi, miso, tx_dma, rx_dma, config);
-    let spi =
-        ExclusiveDevice::new(spi, Output::new(cs, gpio::Level::Low), embassy_time::Delay).unwrap();
+    let spi = Spi::new(spi, pins.clk, pins.mosi, pins.miso, tx_dma, rx_dma, config);
+    let spi = ExclusiveDevice::new(
+        spi,
+        Output::new(pins.cs, gpio::Level::Low),
+        embassy_time::Delay,
+    )
+    .unwrap();
 
     spawner.must_spawn(trackpad_task(spi));
 }
