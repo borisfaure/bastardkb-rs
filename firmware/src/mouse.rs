@@ -94,6 +94,7 @@ impl MouseHandler {
     }
 
     /// On wheel
+    #[cfg(feature = "dilemma")]
     pub fn on_wheel(&mut self, is_up: bool) {
         self.wheel = if is_up { 1 } else { -1 };
         self.changed = true;
