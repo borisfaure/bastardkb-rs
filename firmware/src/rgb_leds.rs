@@ -1,13 +1,15 @@
 use crate::side::SIDE_CHANNEL;
 use embassy_executor::Spawner;
 use embassy_futures::select::{select3, Either3};
-use embassy_rp::dma::{AnyChannel, Channel as DmaChannel};
-use embassy_rp::peripherals::PIO0;
-use embassy_rp::pio::{
-    Common, Config as PioConfig, FifoJoin, Instance, PioPin, ShiftConfig, ShiftDirection,
-    StateMachine,
-};
 use embassy_rp::{clocks, into_ref, Peripheral, PeripheralRef};
+use embassy_rp::{
+    dma::{AnyChannel, Channel as DmaChannel},
+    peripherals::PIO0,
+    pio::{
+        program::pio_file, Common, Config as PioConfig, FifoJoin, Instance, PioPin, ShiftConfig,
+        ShiftDirection, StateMachine,
+    },
+};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
@@ -61,7 +63,7 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
         // Setup sm0
 
         // prepare the PIO program
-        let rgb_led_prog = pio_proc::pio_file!("src/rgb_led.pio");
+        let rgb_led_prog = pio_file!("src/rgb_led.pio");
         let mut cfg = PioConfig::default();
 
         // Pin config
@@ -107,7 +109,10 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
         }
 
         // DMA transfer
-        self.sm.tx().dma_push(self.dma.reborrow(), &words).await;
+        self.sm
+            .tx()
+            .dma_push(self.dma.reborrow(), &words, false)
+            .await;
 
         Timer::after_micros(55).await;
     }

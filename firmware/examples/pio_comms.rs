@@ -11,8 +11,10 @@ use embassy_rp::bind_interrupts;
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{PIN_1, PIN_29, PIO1};
-use embassy_rp::pio::{self, Direction, FifoJoin, ShiftDirection, StateMachine};
-use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
+use embassy_rp::pio::{
+    self, program::pio_file, Direction, FifoJoin, InterruptHandler as PioInterruptHandler, Pio,
+    ShiftDirection, StateMachine,
+};
 use embassy_time::Timer;
 use fixed::{traits::ToFixed, types::U56F8};
 use {defmt_rtt as _, panic_probe as _};
@@ -122,7 +124,7 @@ fn task_tx<'a>(
     mut sm_tx: SmTx<'a>,
     tx_pin: &mut PioPin<'a>,
 ) -> SmTx<'a> {
-    let tx_prog = pio_proc::pio_file!("src/tx.pio");
+    let tx_prog = pio_file!("src/tx.pio");
     sm_tx.set_pins(Level::High, &[tx_pin]);
     sm_tx.set_pin_dirs(Direction::Out, &[tx_pin]);
 
@@ -146,7 +148,7 @@ fn task_rx<'a>(
     mut sm_rx: SmRx<'a>,
     rx_pin: &mut PioPin<'a>,
 ) -> SmRx<'a> {
-    let rx_prog = pio_proc::pio_file!("src/rx.pio");
+    let rx_prog = pio_file!("src/rx.pio");
     sm_rx.set_pins(Level::High, &[rx_pin]);
     sm_rx.set_pin_dirs(Direction::In, &[rx_pin]);
 
