@@ -14,7 +14,12 @@ declare -A EXAMPLES
 EXAMPLES=(
     [0]="blinky_led"
     [1]="blinky_led_liatris"
-    [2]="pio_comms"
+    [2]="encoder"
+    [3]="pio_comms"
+    [4]="pio_ping"
+    [5]="pio_ping_pong"
+    [6]="protocol"
+    [7]="rgb_leds"
 )
 declare -A MODELS
 MODELS=(

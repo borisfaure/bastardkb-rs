@@ -19,8 +19,8 @@ use embassy_rp::{
     gpio::{Drive, Input, Level, Output, Pull},
     peripherals::{PIN_1, PIO1},
     pio::{
-        self, Common, Direction, FifoJoin, InterruptHandler as PioInterruptHandler, Pio,
-        ShiftDirection, StateMachine,
+        self, program::pio_asm, Common, Direction, FifoJoin,
+        InterruptHandler as PioInterruptHandler, Pio, ShiftDirection, StateMachine,
     },
 };
 use embassy_time::{Duration, Ticker, Timer};
@@ -129,10 +129,6 @@ impl Hardware for Hw<'_> {
         self.rx_sm.rx().wait_pull().await
     }
 
-    async fn wait_a_bit(&mut self) {
-        Timer::after_millis(5).await;
-    }
-
     // Set error state
     async fn set_error_state(&mut self, error: bool) {
         if error && !self.on_error {
@@ -154,7 +150,7 @@ fn task_tx<'a>(common: &mut PioCommon<'a>, mut sm: SmTx<'a>, pin: &mut PioPin<'a
     pin.set_slew_rate(embassy_rp::gpio::SlewRate::Fast);
     pin.set_schmitt(true);
 
-    let tx_prog = pio_proc::pio_asm!(
+    let tx_prog = pio_asm!(
         ".wrap_target",
         ".side_set 1 opt",
         // Pull the data to send and keep line high
@@ -189,7 +185,7 @@ fn task_tx<'a>(common: &mut PioCommon<'a>, mut sm: SmTx<'a>, pin: &mut PioPin<'a
 }
 
 fn task_rx<'a>(common: &mut PioCommon<'a>, mut sm: SmRx<'a>, pin: &PioPin<'a>) -> SmRx<'a> {
-    let rx_prog = pio_proc::pio_asm!(
+    let rx_prog = pio_asm!(
         ".wrap_target",
         "start:",
         // Wait for the line to go low to start receiving

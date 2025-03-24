@@ -10,8 +10,8 @@ use embassy_rp::dma::{AnyChannel, Channel};
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{
-    Common, Config as PioConfig, FifoJoin, Instance, InterruptHandler, Pio, PioPin, ShiftConfig,
-    ShiftDirection, StateMachine,
+    program::pio_file, Common, Config as PioConfig, FifoJoin, Instance, InterruptHandler, Pio,
+    PioPin, ShiftConfig, ShiftDirection, StateMachine,
 };
 use embassy_rp::{bind_interrupts, clocks, into_ref, Peripheral, PeripheralRef};
 use embassy_time::{Duration, Ticker, Timer};
@@ -41,7 +41,7 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
         // Setup sm0
 
         // prepare the PIO program
-        let rgb_led_prog = pio_proc::pio_file!("src/rgb_led.pio");
+        let rgb_led_prog = pio_file!("src/rgb_led.pio");
         let mut cfg = PioConfig::default();
 
         // Pin config
@@ -87,7 +87,10 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
         }
 
         // DMA transfer
-        self.sm.tx().dma_push(self.dma.reborrow(), &words).await;
+        self.sm
+            .tx()
+            .dma_push(self.dma.reborrow(), &words, false)
+            .await;
 
         Timer::after_micros(55).await;
     }
