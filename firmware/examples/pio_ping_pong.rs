@@ -296,18 +296,16 @@ async fn ping_pong<'a>(
                 if !is_right {
                     // Send back the received byte
                     hw.send(x).await;
-                } else {
-                    if x != TEST_DATA[idx] {
-                        defmt::error!(
-                            "[{}] got byte: 0b{:032b} 0x{:04x}, expecting 0b{:032b} 0x{:04x}",
-                            num,
-                            x,
-                            x,
-                            TEST_DATA[idx],
-                            TEST_DATA[idx]
-                        );
-                        errors += 1;
-                    }
+                } else if x != TEST_DATA[idx] {
+                    defmt::error!(
+                        "[{}] got byte: 0b{:032b} 0x{:04x}, expecting 0b{:032b} 0x{:04x}",
+                        num,
+                        x,
+                        x,
+                        TEST_DATA[idx],
+                        TEST_DATA[idx]
+                    );
+                    errors += 1;
                 }
             }
         }

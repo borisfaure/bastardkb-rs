@@ -137,9 +137,9 @@ async fn main(_spawner: Spawner) {
     let mut ticker = Ticker::every(Duration::from_millis(10));
     loop {
         for j in 0..(256 * 5) {
-            for i in 0..NUM_LEDS {
-                data[i] = wheel((((i * 256) as u16 / NUM_LEDS as u16 + j as u16) & 255) as u8);
-                debug!("R: {} G: {} B: {}", data[i].r, data[i].g, data[i].b);
+            for (i, led) in data.iter_mut().enumerate().take(NUM_LEDS) {
+                *led = wheel((((i * 256) as u16 / NUM_LEDS as u16 + j as u16) & 255) as u8);
+                debug!("R: {} G: {} B: {}", led.r, led.g, led.b);
             }
             ws2812.write(&data).await;
 
