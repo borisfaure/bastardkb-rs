@@ -15,6 +15,8 @@ pub const UNDERGLOW_LEDS: usize = 18;
 pub const ROWS: usize = 4;
 /// Keyboard matrix columns
 pub const COLS: usize = 5;
+/// Maximum light level per color. Must be usable as a mask
+pub const MAX_LIGHT_LEVEL: u8 = 0xaf;
 
 /// RGB Animation Type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,7 +117,7 @@ const YELLOW_COLOR: RGB8 = RGB8::new(0x40, 0x30, 0x00);
 /// Dark red color, used for MOUSE layer
 const DARK_RED_COLOR: RGB8 = RGB8::new(0x40, 0, 0);
 /// White color, used for ERROR layer
-const WHITE_COLOR: RGB8 = RGB8::new(0xff, 0xff, 0xff);
+const WHITE_COLOR: RGB8 = RGB8::new(MAX_LIGHT_LEVEL, MAX_LIGHT_LEVEL, MAX_LIGHT_LEVEL);
 
 /// Indexed colors
 const INDEXED_COLORS: [RGB8; 11] = [
@@ -138,9 +140,9 @@ pub const ERROR_COLOR_INDEX: u8 = 10;
 
 impl From<u32> for RGB8 {
     fn from(i: u32) -> Self {
-        let r = ((i >> 24) & 0xff) as u8;
-        let g = ((i >> 16) & 0xff) as u8;
-        let b = ((i >> 8) & 0xff) as u8;
+        let r = ((i >> 24) as u8) & MAX_LIGHT_LEVEL;
+        let g = ((i >> 16) as u8) & MAX_LIGHT_LEVEL;
+        let b = ((i >> 8) as u8) & MAX_LIGHT_LEVEL;
         RGB8 { r, g, b }
     }
 }
@@ -212,14 +214,15 @@ const MATRIX_LED_LEFT: [[usize; COLS]; ROWS] = [
     [99, 99, 33, 34, 35],
 ];
 
-///>>> from math import sin, pi; [int(sin(x/128.0*pi)**4*255) for x in range(128)]
+///>>> from math import sin, pi; [int(sin(x/128.0*pi)**4*0xAF) for x in range(128)]
+///
 const PULSE_TABLE: [u16; 128] = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 17, 20, 24, 28, 32, 36,
-    41, 46, 51, 57, 63, 70, 76, 83, 91, 98, 106, 113, 121, 129, 138, 146, 154, 162, 170, 178, 185,
-    193, 200, 207, 213, 220, 225, 231, 235, 240, 244, 247, 250, 252, 253, 254, 255, 254, 253, 252,
-    250, 247, 244, 240, 235, 231, 225, 220, 213, 207, 200, 193, 185, 178, 170, 162, 154, 146, 138,
-    129, 121, 113, 106, 98, 91, 83, 76, 70, 63, 57, 51, 46, 41, 36, 32, 28, 24, 20, 17, 15, 12, 10,
-    8, 6, 5, 4, 3, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 4, 5, 7, 8, 10, 12, 14, 16, 19, 22, 25, 28,
+    31, 35, 39, 43, 48, 52, 57, 62, 67, 72, 78, 83, 89, 94, 100, 105, 111, 116, 122, 127, 132, 137,
+    142, 146, 150, 154, 158, 161, 164, 167, 169, 171, 173, 174, 174, 175, 174, 174, 173, 171, 169,
+    167, 164, 161, 158, 154, 150, 146, 142, 137, 132, 127, 122, 116, 111, 105, 100, 94, 89, 83, 78,
+    72, 67, 62, 57, 52, 48, 43, 39, 35, 31, 28, 25, 22, 19, 16, 14, 12, 10, 8, 7, 5, 4, 3, 2, 2, 1,
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
 impl RgbAnim {
@@ -262,8 +265,11 @@ impl RgbAnim {
     /// Tick the wheel animation
     fn tick_wheel(&mut self) {
         for (i, led) in self.led_data.iter_mut().enumerate().take(UNDERGLOW_LEDS) {
-            *led =
-                wheel((((i * 256) as u16 / UNDERGLOW_LEDS as u16 + self.frame as u16) & 255) as u8);
+            *led = wheel(
+                (((i * (MAX_LIGHT_LEVEL as usize)) as u16 / UNDERGLOW_LEDS as u16
+                    + self.frame as u16)
+                    & 255) as u8,
+            );
         }
     }
 
