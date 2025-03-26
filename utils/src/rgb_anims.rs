@@ -5,7 +5,7 @@ use crate::prng::XorShift32;
 use crate::serde::Error as SerdeError;
 
 /// Number of LEDs on each side
-#[cfg(feature = "cnano")]
+#[cfg(not(feature = "dilemma"))]
 pub const NUM_LEDS: usize = 18;
 #[cfg(feature = "dilemma")]
 pub const NUM_LEDS: usize = 36;
@@ -184,7 +184,7 @@ fn wheel(mut wheel_pos: u8) -> RGB8 {
 }
 
 /// Index of leds on the right side
-#[cfg(feature = "cnano")]
+#[cfg(not(feature = "dilemma"))]
 const MATRIX_LED_RIGHT: [[usize; COLS]; ROWS] = [
     [2, 3, 8, 9, 12],
     [1, 4, 7, 10, 13],
@@ -199,7 +199,7 @@ const MATRIX_LED_RIGHT: [[usize; COLS]; ROWS] = [
     [99, 99, 99, 34, 35],
 ];
 /// Index of leds on the left side
-#[cfg(feature = "cnano")]
+#[cfg(not(feature = "dilemma"))]
 const MATRIX_LED_LEFT: [[usize; COLS]; ROWS] = [
     [2, 3, 8, 9, 12],
     [1, 4, 7, 10, 13],
