@@ -22,11 +22,11 @@ impl Sid {
         Self { v }
     }
     /// Get the next sequence id
-    pub fn next(&mut self) {
+    pub fn next(self) -> Self {
         if self.v == SID_MAX_U8 {
-            self.v = 0;
+            Self { v: 0 }
         } else {
-            self.v += 1;
+            Self { v: self.v + 1 }
         }
     }
     /// As usize
@@ -77,7 +77,7 @@ impl core::iter::Iterator for SidIter {
             return None;
         }
         let r = Some(self.sid);
-        self.sid.next();
+        self.sid = self.sid.next();
         if self.sid == self.end {
             self.eof = true;
         }
