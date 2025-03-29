@@ -23,7 +23,7 @@ use embassy_rp::{
         InterruptHandler as PioInterruptHandler, Pio, ShiftDirection, StateMachine,
     },
 };
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
 use utils::protocol::Hardware;
 
@@ -71,7 +71,7 @@ impl<'a> Hw<'a> {
         }
 
         // Wait a bit after the last sent message
-        Timer::after(Duration::from_micros(1_000_000 / SPEED)).await;
+        cortex_m::asm::delay(250);
 
         // Disable TX state machine before manipulating TX pin
         self.tx_sm.set_enable(false);
@@ -262,7 +262,7 @@ async fn ping_pong<'a>(
     let mut hw = Hw::new(tx_sm, rx_sm, pio_pin);
     hw.enter_rx().await;
 
-    let mut ticker = Ticker::every(Duration::from_millis(200));
+    let mut ticker = Ticker::every(Duration::from_millis(50));
     let mut idx = 0;
     let mut state = false;
     status_led.set_high();

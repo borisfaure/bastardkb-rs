@@ -24,7 +24,7 @@ use embassy_rp::{
     },
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
 use futures::future;
 use utils::protocol::{Hardware, SideProtocol};
@@ -86,7 +86,7 @@ impl<'a> Hw<'a> {
         }
 
         // Wait a bit after the last sent message
-        Timer::after(Duration::from_micros(1_000_000 / SPEED)).await;
+        cortex_m::asm::delay(250);
 
         // Disable TX state machine before manipulating TX pin
         self.tx_sm.set_enable(false);
