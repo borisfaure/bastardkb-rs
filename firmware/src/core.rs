@@ -84,8 +84,6 @@ pub struct Core<'a> {
     /// Debug tick counter
     #[cfg(feature = "debug_tick")]
     debug_tick: usize,
-    /// Side Ping tick counter
-    side_ping_tick: usize,
     /// Whether this core is the right side
     is_right: bool,
 }
@@ -101,7 +99,6 @@ impl<'a> Core<'a> {
             hid_mouse_writer,
             #[cfg(feature = "debug_tick")]
             debug_tick: TICK_DEBUG,
-            side_ping_tick: TICK_SIDE_PING,
             is_right,
         }
     }
@@ -165,19 +162,6 @@ impl<'a> Core<'a> {
             defmt::info!("Layer: {}", new_layer);
             self.current_layer = new_layer;
             self.set_color_layer(new_layer as u8).await;
-        }
-
-        // Send a Ping message to the other side every Xs
-        if self.is_right {
-            self.side_ping_tick -= 1;
-            if self.side_ping_tick == 0 {
-                defmt::info!("Sending Ping");
-                if SIDE_CHANNEL.is_full() {
-                    defmt::error!("Side channel is full");
-                }
-                SIDE_CHANNEL.send(Event::Ping).await;
-                self.side_ping_tick = TICK_SIDE_PING;
-            }
         }
     }
 
