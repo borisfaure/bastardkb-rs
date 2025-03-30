@@ -177,12 +177,12 @@ mod tests {
     #[test]
     fn test_next() {
         let mut sid = Sid::new(0);
-        sid.next();
+        sid = sid.next();
         assert_eq!(sid, Sid::new(1));
-        sid.next();
+        sid = sid.next();
         assert_eq!(sid, Sid::new(2));
         sid.v = 31;
-        sid.next();
+        sid = sid.next();
         assert_eq!(sid, Sid::new(0));
     }
 
