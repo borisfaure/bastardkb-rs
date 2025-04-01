@@ -89,7 +89,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
         if let Event::Retransmit(sid) = event {
             self.retransmit.insert(self.next_tx_sid, sid);
         }
-        self.next_tx_sid.next();
+        self.next_tx_sid = self.next_tx_sid.next();
     }
 
     /// Queue an event to be sent
@@ -245,6 +245,15 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                     }
                     if let Event::Retransmit(to_retransmit) = event {
                         self.on_retransmit(to_retransmit).await;
+                        match (self.next_rx_sid, sid) {
+                            (Some(expected), got) if expected == got => {
+                                self.next_rx_sid = Some(expected.next());
+                            }
+                            (None, _) => {
+                                self.next_rx_sid = Some(sid.next());
+                            }
+                            _ => {}
+                        }
                     } else {
                         match (self.next_rx_sid, sid) {
                             (Some(expected), got) if expected == got => {
@@ -338,20 +347,47 @@ mod tests {
         }
     }
 
+    /// One exchange of messages between the two sides
+    async fn communicate_once(
+        right: &mut SideProtocol<MockHardware>,
+        left: &mut SideProtocol<MockHardware>,
+    ) {
+        if let Some(msg) = left.hw.send_queue.pop_back() {
+            right
+                .hw
+                .to_rx
+                .send(ReceivedOrTick::Some(msg))
+                .await
+                .unwrap();
+        }
+        if !right.hw.rx.is_empty() {
+            right.run_once().await;
+        }
+        if let Some(msg) = right.hw.send_queue.pop_back() {
+            left.hw.to_rx.send(ReceivedOrTick::Some(msg)).await.unwrap();
+        }
+        if !left.hw.rx.is_empty() {
+            left.run_once().await;
+        }
+        info!(
+            "QUEUES: right rx:{} send:{}/{} left rx:{} send:{}/{}",
+            right.hw.rx.len(),
+            right.hw.send_queue.len(),
+            right.hw.msg_sent,
+            left.hw.rx.len(),
+            left.hw.send_queue.len(),
+            left.hw.msg_sent
+        );
+    }
+
     /// Communicate between the two sides
     async fn communicate(
         right: &mut SideProtocol<MockHardware>,
         left: &mut SideProtocol<MockHardware>,
+        loop_nb: usize,
     ) {
-        loop {
-            if let Some(msg) = left.hw.send_queue.pop_back() {
-                right.hw.to_rx.send(msg).await.unwrap();
-                right.run_once().await;
-            }
-            if let Some(msg) = right.hw.send_queue.pop_back() {
-                left.hw.to_rx.send(msg).await.unwrap();
-                left.run_once().await;
-            }
+        for _ in 0..loop_nb {
+            communicate_once(right, left).await;
             if right.hw.send_queue.is_empty() && left.hw.send_queue.is_empty() {
                 break;
             }
@@ -413,7 +449,7 @@ mod tests {
         right.hw.send_queue.pop_back().unwrap();
         right.send_event(Event::Ping).await;
         // Let it commmunicate and stabilize
-        communicate(&mut right, &mut left).await;
+        communicate(&mut right, &mut left, 10).await;
         assert!(is_stable(&right));
         assert!(is_stable(&left));
     }
@@ -444,7 +480,38 @@ mod tests {
         }
         right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
         // Let it commmunicate and stabilize
-        communicate(&mut right, &mut left).await;
+        communicate(&mut right, &mut left, 40).await;
+        assert!(is_stable(&right));
+        assert!(is_stable(&left));
+    }
+
+    #[tokio::test]
+    /// Test the startup of the protocol when the two sides are not synced.
+    /// The right side is the master and the left side is the slave.
+    async fn test_startup_unsynced() {
+        let _ = lovely_env_logger::try_init_default();
+        let hw_right = MockHardware::new();
+        let hw_left = MockHardware::new();
+        let mut right = SideProtocol::new(hw_right, "right", true);
+        let mut left = SideProtocol::new(hw_left, "left", false);
+
+        right.next_rx_sid = Some(Sid::new(30));
+        right.next_tx_sid = Sid::new(2);
+        left.next_rx_sid = None;
+        left.next_tx_sid = Sid::new(0);
+        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
+        // Let it commmunicate and stabilize
+        communicate(&mut right, &mut left, 10).await;
+        info!("Right: {:?}", right.hw.msg_sent);
+        info!("Left: {:?}", right.hw.msg_sent);
+        assert!(is_stable(&right));
+        assert!(is_stable(&left));
+        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
+        // Force a ping to be sent due to 2 consecutive ticks with no comm
+        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
+        // Let it commmunicate and stabilize
+        communicate_once(&mut right, &mut left).await;
+        communicate(&mut right, &mut left, 10).await;
         assert!(is_stable(&right));
         assert!(is_stable(&left));
     }
@@ -454,23 +521,32 @@ mod tests {
         let _ = lovely_env_logger::try_init_default();
         let hw_right = MockHardware::new();
         let hw_left = MockHardware::new();
-        let mut right = SideProtocol::new(hw_right, "right");
-        let mut left = SideProtocol::new(hw_left, "left");
+        let mut right = SideProtocol::new(hw_right, "right", true);
+        let mut left = SideProtocol::new(hw_left, "left", false);
 
-        right.next_rx_sid = Sid::new(0);
+        right.next_rx_sid = Some(Sid::new(30));
         right.next_tx_sid = Sid::new(0);
-        left.next_rx_sid = Sid::new(5);
+        left.next_rx_sid = Some(Sid::new(25));
         left.next_tx_sid = Sid::new(10);
-        right.send_event(Event::Ping).await;
+        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
         // Let it commmunicate and stabilize
-        communicate(&mut right, &mut left).await;
+        communicate(&mut right, &mut left, 50).await;
         info!("Right: {:?}", right.hw.msg_sent);
         info!("Left: {:?}", right.hw.msg_sent);
         assert!(is_stable(&right));
         assert!(is_stable(&left));
-        right.send_event(Event::Press(0, 0)).await;
+
+        // Force a ping to be sent due to 2 consecutive ticks with no comm
+        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
+        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
+
         left.send_event(Event::Press(3, 3)).await;
         // Let it commmunicate and stabilize
-        communicate(&mut right, &mut left).await;
+        communicate(&mut right, &mut left, 50).await;
+        assert!(is_stable(&right));
+        assert!(is_stable(&left));
     }
+
+    // TODO Test when a side got a corrupted message and sends a retransmit
+    // that is also corrupted
 }
