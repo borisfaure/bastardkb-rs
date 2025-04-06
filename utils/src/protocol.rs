@@ -440,14 +440,20 @@ mod tests {
         let mut right = SideProtocol::new(hw_right, "right", true);
         let mut left = SideProtocol::new(hw_left, "left", false);
 
-        // Send 4 pings from right to left but only receive the 4th one
-        right.send_event(Event::Ping).await;
+        // Both sides are synced
+        right.next_rx_sid = Some(Sid::new(0));
+        right.next_tx_sid = Sid::new(0);
+        left.next_rx_sid = Some(Sid::new(0));
+        left.next_tx_sid = Sid::new(0);
+
+        // Send 4 SeedRng from right to left but only receive the 4th one
+        right.send_event(Event::SeedRng(0)).await;
         right.hw.send_queue.pop_back().unwrap();
-        right.send_event(Event::Ping).await;
+        right.send_event(Event::SeedRng(1)).await;
         right.hw.send_queue.pop_back().unwrap();
-        right.send_event(Event::Ping).await;
+        right.send_event(Event::SeedRng(2)).await;
         right.hw.send_queue.pop_back().unwrap();
-        right.send_event(Event::Ping).await;
+        right.send_event(Event::SeedRng(3)).await;
         // Let it commmunicate and stabilize
         communicate(&mut right, &mut left, 10).await;
         assert!(is_stable(&right));
