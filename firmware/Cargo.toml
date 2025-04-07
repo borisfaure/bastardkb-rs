@@ -31,7 +31,7 @@ fixed-macro = "1.2"
 keyberon = { git = "https://github.com/borisfaure/keyberon", branch = "shifted_seq" }
 
 defmt = "0.3"
-defmt-rtt = "0.4"
+defmt-rtt = "1.0"
 
 embedded-hal = "1.0"
 embedded-hal-async = "1.0"
