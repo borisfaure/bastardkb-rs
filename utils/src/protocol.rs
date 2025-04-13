@@ -1,13 +1,40 @@
 //! Protocol between the halves.
 
-use crate::log::warn;
+// The protocol is a simple state machine that sends and receives messages
+// between the two sides.  Each side has a sequence id (SID) that is
+// incremented for each message sent.  The other side must Acknowledge
+// the message by sending back the same SID.
+//
+// There are few error cases when new messages are queued until the
+// error is resolved.
+// 1. If a message is received with an invalid SID, a retransmit is sent for
+//    the expected SID.
+//    Once the expected SID is received, the next SID is incremented and a
+//    Retransmit is sent for the next SID.
+//    This ends when the other side sends a Noop message.
+// 2. If a message cannot be deserialized, a retransmit is sent for the
+//    expected SID.
+//    Once the expected SID is received, the next SID is incremented and a
+//    Retransmit is sent for the next SID.
+//    This ends when the other side sends a Noop message.
+// 3. A Retransmit message is received. This means the other side is on error.
+//    To avoid a message storm, only the expected SID is retransmitted.
+//    The error state is cleared when receiving a Retransmit message for an
+//    event that was not sent, or already acknowledged.
+// Those cases can occur simultaneously on both sides.
+// When such errors occur, no ping is sent until the error is resolved.
+
+use crate::log::{error, warn};
 #[cfg(feature = "log-protocol")]
 use crate::log::{info, Debug2Format};
 use crate::serde::{deserialize, serialize, Event, Message};
 use crate::sid::{CircBuf, Sid};
+use arraydeque::ArrayDeque;
 use core::future;
 
-enum ReceivedOrTick {
+/// Received or tick
+#[allow(dead_code)]
+pub enum ReceivedOrTick {
     Some(Message),
     Tick,
 }
@@ -23,33 +50,42 @@ pub trait Hardware {
     fn set_error_state(&mut self, error: bool) -> impl future::Future<Output = ()> + Send;
 }
 
+const MAX_QUEUED_EVENTS: usize = 64;
+
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct SideProtocol<W: Sized + Hardware> {
     // Name
     name: &'static str,
 
-    /// Events sent to the other side
+    /// Events sent to the other side,
+    /// waiting for an ACK
     sent: CircBuf<Message>,
-    /// Retransmit requests to send to the other side
-    /// The key is the sid used to retransmit
-    retransmit: CircBuf<Sid>,
-    /// Last message received, if from a retransmit request
-    last_msg: Option<Message>,
 
-    /// Expecting sid
+    /// Events queued to be sent when retransmit is complete
+    queued_events: ArrayDeque<Event, MAX_QUEUED_EVENTS, arraydeque::behavior::Saturating>,
+
+    /// Expecting sid to be received
+    /// None on startup
     next_rx_sid: Option<Sid>,
     /// Next sequence id to send
     next_tx_sid: Sid,
-
-    /// Errors in the received sequence ids
-    rx_errors: CircBuf<()>,
 
     /// Is master
     is_master: bool,
 
     /// Need to send a ping
     need_ping: bool,
+
+    /// Last message received
+    last_msg: Option<Message>,
+
+    /// Retransmit on going: this side asked for a retransmit
+    retransmit_on_going: bool,
+    /// Remote retransmit on going: the other side asked for a retransmit
+    remote_retransmit_on_going: bool,
+    /// Retransmit reverse index
+    retransmit_rev_index: CircBuf<Sid>,
 
     /// Hardware
     pub hw: W,
@@ -61,14 +97,16 @@ impl<W: Sized + Hardware> SideProtocol<W> {
         Self {
             name,
             sent: CircBuf::new(),
-            retransmit: CircBuf::new(),
+            queued_events: ArrayDeque::new(),
             next_rx_sid: None,
             next_tx_sid: Sid::default(),
-            last_msg: None,
-            rx_errors: CircBuf::new(),
             hw,
             is_master,
+            retransmit_on_going: false,
+            remote_retransmit_on_going: false,
+            retransmit_rev_index: CircBuf::new(),
             need_ping: true,
+            last_msg: None,
         }
     }
 
@@ -78,7 +116,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
         let msg = serialize(event, self.next_tx_sid).unwrap();
         #[cfg(feature = "log-protocol")]
         info!(
-            "[{}] Sending [{}] Event: {} (0x{:04x})",
+            "[{}] Sending [Sid#{}] Event: {} (0x{:04x})",
             self.name,
             self.next_tx_sid,
             Debug2Format(&event),
@@ -86,21 +124,58 @@ impl<W: Sized + Hardware> SideProtocol<W> {
         );
         self.hw.send(msg).await;
         self.sent.insert(self.next_tx_sid, msg);
-        if let Event::Retransmit(sid) = event {
-            self.retransmit.insert(self.next_tx_sid, sid);
+        if let Event::Retransmit(re) = event {
+            // Populate the reverse index
+            self.retransmit_rev_index.insert(re, self.next_tx_sid);
         }
+
         self.next_tx_sid = self.next_tx_sid.next();
+    }
+
+    /// Check if we're in error mode
+    fn is_on_error(&self) -> bool {
+        self.retransmit_on_going || self.remote_retransmit_on_going
     }
 
     /// Queue an event to be sent
     pub async fn queue_event(&mut self, event: Event) {
-        // TODO: really queue events when retransmits are ongoing
-        self.send_event(event).await;
+        if self.is_on_error() {
+            // If we're in error mode, queue the event instead of sending it immediately
+            #[cfg(feature = "log-protocol")]
+            info!(
+                "[{}] Queuing event while in error mode: {}",
+                self.name,
+                Debug2Format(&event)
+            );
+            if let Err(e) = self.queued_events.push_front(event) {
+                warn!("[{}] Unable to queue event: {}", self.name, e);
+            }
+        } else {
+            // If we're not in error mode, send the event immediately
+            #[cfg(feature = "log-protocol")]
+            info!(
+                "[{}] Sending event: {} (no queue)",
+                self.name,
+                Debug2Format(&event)
+            );
+            self.send_event(event).await;
+        }
+    }
+
+    /// Send a Retransmit event
+    async fn send_retransmit(&mut self, sid: Sid) {
+        self.retransmit_on_going = true;
+        // Mark as on error
+        self.hw.set_error_state(self.is_on_error()).await;
+
+        #[cfg(feature = "log-protocol")]
+        info!("[{}] Sending Retransmit [{}]", self.name, sid);
+        self.send_event(Event::Retransmit(sid)).await;
     }
 
     /// On invalid sequence id
     async fn on_invalid_sid(&mut self, msg: Message, expected: Sid, event: Event, sid: Sid) {
-        warn!(
+        error!(
             "[{}] Invalid sid received: expected {}, got {} for event {:?}",
             self.name, expected, sid, event
         );
@@ -110,12 +185,8 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                 return;
             }
         }
-        let end = sid.next();
-        for s in expected.iter(end) {
-            self.rx_errors.insert(s, ());
-        }
-        self.send_event(Event::Retransmit(self.next_rx_sid.unwrap()))
-            .await;
+
+        self.send_retransmit(expected).await;
     }
 
     //. Send an ACK for the given sequence id
@@ -129,6 +200,24 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     /// This means the other side has received this event
     async fn on_ack(&mut self, sid: Sid) {
         self.sent.remove(sid);
+
+        // If we were in error mode and all messages have been acknowledged,
+        // we can exit error mode and send any queued events
+        if self.retransmit_on_going && self.sent.is_empty() {
+            #[cfg(feature = "log-protocol")]
+            info!(
+                "[{}] Exiting error mode on retransmit on going, sending queued events",
+                self.name
+            );
+
+            self.retransmit_on_going = false;
+            self.hw.set_error_state(self.is_on_error()).await;
+
+            // Send all queued events
+            while let Some(event) = self.queued_events.pop_back() {
+                self.send_event(event).await;
+            }
+        }
     }
 
     /// On Ping event: respond with a ack
@@ -142,18 +231,26 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     /// The other side is asking for a retransmit
     /// Send the event again with the same sequence id
     async fn on_retransmit(&mut self, sid: Sid) {
+        // Mark as on error
+        self.remote_retransmit_on_going = true;
+        self.hw.set_error_state(self.is_on_error()).await;
+        #[cfg(feature = "log-protocol")]
+        error!("[{}] Received Retransmit [{}]", self.name, sid,);
+
         if let Some(msg) = self.sent.get(sid) {
             #[cfg(feature = "log-protocol")]
             info!(
-                "[{}] Retransmitting [{}] Event: {}",
+                "[{}] retransmitting [{}] event: {}",
                 self.name,
                 sid,
                 Debug2Format(&deserialize(msg).unwrap().0)
             );
             self.hw.send(msg).await;
         } else {
-            warn!("[{}] No event to retransmit for sid {}", self.name, sid);
+            #[cfg(feature = "log-protocol")]
+            info!("[{}] retransmitting [{}] event: Noop", self.name, sid);
             let msg = serialize(Event::Noop, sid).unwrap();
+            self.remote_retransmit_on_going = false;
             self.hw.send(msg).await;
         }
     }
@@ -167,7 +264,21 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     ) -> Option<Event> {
         let mut to_process = None;
         match event {
-            Event::Noop => {}
+            Event::Noop => {
+                #[cfg(feature = "log-protocol")]
+                info!("[{}] Received Noop", self.name);
+                // If we were in error mode and received a Noop, we can exit
+                // error mode
+                if self.retransmit_on_going {
+                    #[cfg(feature = "log-protocol")]
+                    info!(
+                        "[{}] Exiting error mode about ongoing retransmit",
+                        self.name
+                    );
+                    self.retransmit_on_going = false;
+                    self.hw.set_error_state(self.is_on_error()).await;
+                }
+            }
             Event::Ping => {
                 self.on_ping(sid).await;
             }
@@ -180,36 +291,10 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                 to_process = Some(event);
             }
         }
-        // If this Sequence Id had an error, we can clear it now
-        if self.rx_errors.get(sid).is_some() {
-            self.last_msg = Some(msg);
-            self.rx_errors.remove(sid);
-            /* Remove related retransmit requests */
-            for idx in Sid::new(0).iter(Sid::new(0)) {
-                if let Some(s) = self.retransmit.get(idx) {
-                    if s == sid {
-                        #[cfg(feature = "log-protocol")]
-                        info!(
-                            "[{}] Removing retransmit request for sid {} at {}",
-                            self.name, sid, idx
-                        );
-                        self.sent.remove(idx);
-                        self.retransmit.remove(idx);
-                    }
-                }
-            }
-        } else {
-            self.last_msg = None;
-        }
-        if self.rx_errors.is_empty() {
-            self.hw.set_error_state(false).await;
-        } else if let Some(next) = self.next_rx_sid {
-            // Now that we have an event to process, since there are still
-            // errors, we need to ask to retransmit the next event
-            if self.rx_errors.get(next).is_some() {
-                self.send_event(Event::Retransmit(next)).await;
-            }
-        }
+
+        // Store the last message for duplicate detection
+        self.last_msg = Some(msg);
+
         to_process
     }
 
@@ -245,43 +330,64 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                     }
                     if let Event::Retransmit(to_retransmit) = event {
                         self.on_retransmit(to_retransmit).await;
-                        match (self.next_rx_sid, sid) {
-                            (Some(expected), got) if expected == got => {
-                                self.next_rx_sid = Some(expected.next());
-                            }
-                            (None, _) => {
-                                self.next_rx_sid = Some(sid.next());
-                            }
-                            _ => {}
-                        }
-                    } else {
-                        match (self.next_rx_sid, sid) {
-                            (Some(expected), got) if expected == got => {
-                                self.next_rx_sid = Some(expected.next());
-                                if let Some(event) =
-                                    self.handle_received_event(msg, event, sid).await
-                                {
-                                    return Some(event);
-                                }
-                            }
-                            (None, _) => {
-                                self.next_rx_sid = Some(sid.next());
-                                if let Some(event) =
-                                    self.handle_received_event(msg, event, sid).await
-                                {
-                                    return Some(event);
-                                }
-                            }
-                            (Some(expected), _) => {
-                                self.on_invalid_sid(msg, expected, event, sid).await;
-                            }
-                        }
                     }
+                    if let Some(event_to_return) = match (self.next_rx_sid, sid) {
+                        (Some(expected), got) if expected == got => {
+                            let mut event_to_return = None;
+                            // We received the expected message
+                            if self.retransmit_on_going {
+                                // If we're in retransmit mode, and got the event, consider the
+                                // Retransmit to be acknowledged
+                                #[cfg(feature = "log-protocol")]
+                                info!(
+                                    "[{}] while in retransmit mode, received event: {}, retransmit acknowledged",
+                                    self.name,
+                                    Debug2Format(&event)
+                                );
+                                if let Some(re) = self.retransmit_rev_index.take(sid) {
+                                    self.sent.remove(re);
+                                }
+                            }
+                            self.next_rx_sid = Some(expected.next());
+                            if let Some(event) = self.handle_received_event(msg, event, sid).await {
+                                event_to_return = Some(event);
+                            }
+                            #[cfg(feature = "log-protocol")]
+                            info!(
+                                "[{}] retransmit on going: {}",
+                                self.name, self.retransmit_on_going
+                            );
+                            if self.retransmit_on_going {
+                                // We were in error mode and received the
+                                // expected message. Ask for the next
+                                // message
+                                if let Some(next) = self.next_rx_sid {
+                                    self.send_retransmit(next).await;
+                                }
+                            }
+                            event_to_return
+                        }
+                        (None, _) => {
+                            // No expected message, this is the first message
+                            self.next_rx_sid = Some(sid.next());
+                            if let Some(event) = self.handle_received_event(msg, event, sid).await {
+                                Some(event)
+                            } else {
+                                None
+                            }
+                        }
+                        (Some(expected), _) => {
+                            self.on_invalid_sid(msg, expected, event, sid).await;
+                            None
+                        }
+                    } {
+                        return Some(event_to_return);
+                    };
                 }
                 Err(_) => {
                     warn!("[{}] Unable to deserialize event: 0x{:04x}", self.name, msg);
-                    if let Some(sid) = self.next_rx_sid {
-                        self.send_event(Event::Retransmit(sid)).await;
+                    if let Some(next) = self.next_rx_sid {
+                        self.send_retransmit(next).await;
                     }
                 }
             },
