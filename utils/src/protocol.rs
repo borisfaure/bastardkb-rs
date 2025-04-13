@@ -421,6 +421,7 @@ mod tests {
         to_rx: mpsc::Sender<ReceivedOrTick>,
         rx: mpsc::Receiver<ReceivedOrTick>,
         on_error: bool,
+        name: &'static str,
     }
     impl Hardware for MockHardware {
         fn send(&mut self, msg: Message) -> impl future::Future<Output = ()> + Send {
@@ -437,11 +438,12 @@ mod tests {
         }
         fn set_error_state(&mut self, error: bool) -> impl future::Future<Output = ()> + Send {
             self.on_error = error;
+            info!("[{}] >>> SET ERROR STATE: {}", self.name, error);
             async {}
         }
     }
     impl MockHardware {
-        fn new() -> Self {
+        fn new(name: &'static str) -> Self {
             let (to_rx, rx) = mpsc::channel(MAX_MSGS);
             Self {
                 msg_sent: 0,
@@ -449,6 +451,7 @@ mod tests {
                 to_rx,
                 rx,
                 on_error: false,
+                name,
             }
         }
     }
@@ -517,8 +520,8 @@ mod tests {
     #[tokio::test]
     async fn test_protocol_synced() {
         let _ = lovely_env_logger::try_init_default();
-        let hw_right = MockHardware::new();
-        let hw_left = MockHardware::new();
+        let hw_right = MockHardware::new("right");
+        let hw_left = MockHardware::new("left");
         let mut right = SideProtocol::new(hw_right, "right", true);
         let mut left = SideProtocol::new(hw_left, "left", false);
 
@@ -541,8 +544,8 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_sid() {
         let _ = lovely_env_logger::try_init_default();
-        let hw_right = MockHardware::new();
-        let hw_left = MockHardware::new();
+        let hw_right = MockHardware::new("right");
+        let hw_left = MockHardware::new("left");
         let mut right = SideProtocol::new(hw_right, "right", true);
         let mut left = SideProtocol::new(hw_left, "left", false);
 
@@ -569,8 +572,8 @@ mod tests {
     #[tokio::test]
     async fn test_retransmit_simple() {
         let _ = lovely_env_logger::try_init_default();
-        let hw_right = MockHardware::new();
-        let hw_left = MockHardware::new();
+        let hw_right = MockHardware::new("right");
+        let hw_left = MockHardware::new("left");
         let mut right = SideProtocol::new(hw_right, "right", true);
         let mut left = SideProtocol::new(hw_left, "left", false);
 
@@ -602,8 +605,8 @@ mod tests {
     /// The right side is the master and the left side is the slave.
     async fn test_startup_unsynced() {
         let _ = lovely_env_logger::try_init_default();
-        let hw_right = MockHardware::new();
-        let hw_left = MockHardware::new();
+        let hw_right = MockHardware::new("right");
+        let hw_left = MockHardware::new("left");
         let mut right = SideProtocol::new(hw_right, "right", true);
         let mut left = SideProtocol::new(hw_left, "left", false);
 
@@ -631,8 +634,8 @@ mod tests {
     #[tokio::test]
     async fn test_retransmit_both_sides() {
         let _ = lovely_env_logger::try_init_default();
-        let hw_right = MockHardware::new();
-        let hw_left = MockHardware::new();
+        let hw_right = MockHardware::new("right");
+        let hw_left = MockHardware::new("left");
         let mut right = SideProtocol::new(hw_right, "right", true);
         let mut left = SideProtocol::new(hw_left, "left", false);
 
