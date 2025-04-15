@@ -157,6 +157,11 @@ impl<T: Copy> CircBuf<T> {
     pub fn iter(&self) -> core::slice::Iter<Option<T>> {
         self.arr.iter()
     }
+
+    /// Mut Iterator on all the elements
+    pub fn iter_mut(&mut self) -> core::slice::IterMut<Option<T>> {
+        self.arr.iter_mut()
+    }
 }
 
 impl<T: Copy> Default for CircBuf<T> {
@@ -240,5 +245,41 @@ mod tests {
         assert_eq!(buf.take(Sid::new(2)), Some(3));
         assert_eq!(buf.take(Sid::new(2)), None);
         assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn test_circ_buf_iter() {
+        let mut buf = CircBuf::new();
+        buf.insert(Sid::new(0), 0);
+        buf.insert(Sid::new(2), 2);
+        buf.insert(Sid::new(4), 4);
+        let mut iter = buf.iter().filter_map(|&x| x);
+        assert_eq!(iter.next(), Some(0));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(4));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_circ_buf_iter_mut() {
+        let mut buf = CircBuf::new();
+        buf.insert(Sid::new(0), 0);
+        buf.insert(Sid::new(2), 2);
+        buf.insert(Sid::new(3), -3);
+        buf.insert(Sid::new(5), -5);
+        buf.insert(Sid::new(6), 6);
+        // Filter out negative values
+        buf.iter_mut().for_each(|x| {
+            if let Some(v) = x {
+                if *v < 0 {
+                    *x = None;
+                }
+            }
+        });
+        let mut iter = buf.iter().filter_map(|&x| x);
+        assert_eq!(iter.next(), Some(0));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(6));
+        assert_eq!(iter.next(), None);
     }
 }
