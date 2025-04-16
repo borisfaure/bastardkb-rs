@@ -11,7 +11,7 @@
 
 use embassy_executor::Spawner;
 use embassy_futures::{
-    select::{self, select},
+    select::{select, Either},
     yield_now,
 };
 use embassy_rp::{
@@ -25,7 +25,7 @@ use embassy_rp::{
 };
 use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
-use utils::protocol::Hardware;
+use utils::protocol::{Hardware, ReceivedOrTick};
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -52,6 +52,8 @@ struct Hw<'a> {
     pin: PioPin<'a>,
     // error state
     on_error: bool,
+    // 1s ticker
+    ticker: Ticker,
 }
 
 impl<'a> Hw<'a> {
@@ -61,6 +63,7 @@ impl<'a> Hw<'a> {
             rx_sm,
             pin,
             on_error: false,
+            ticker: Ticker::every(Duration::from_secs(1)),
         }
     }
 
@@ -125,8 +128,17 @@ impl Hardware for Hw<'_> {
         self.enter_rx().await;
     }
 
-    async fn receive(&mut self) -> u32 {
-        self.rx_sm.rx().wait_pull().await
+    async fn receive(&mut self) -> ReceivedOrTick {
+        match select(self.rx_sm.rx().wait_pull(), self.ticker.next()).await {
+            Either::First(x) => {
+                self.ticker.reset();
+                ReceivedOrTick::Some(x)
+            }
+            Either::Second(_) => {
+                self.ticker.reset();
+                ReceivedOrTick::Tick
+            }
+        }
     }
 
     // Set error state
@@ -270,7 +282,7 @@ async fn ping_pong<'a>(
     let mut errors: u32 = 0;
     loop {
         match select(ticker.next(), hw.receive()).await {
-            select::Either::First(_n) => {
+            Either::First(_n) => {
                 if is_right {
                     idx = (idx + 1) % TEST_DATA.len();
                     num += 1;
@@ -285,27 +297,34 @@ async fn ping_pong<'a>(
                     hw.send(x).await;
                 }
             }
-            select::Either::Second(x) => {
-                if state {
-                    status_led.set_high();
-                } else {
-                    status_led.set_low();
-                }
-                state = !state;
-                defmt::info!("[{}] got byte: 0b{:032b} 0x{:04x}", num, x, x);
-                if !is_right {
-                    // Send back the received byte
-                    hw.send(x).await;
-                } else if x != TEST_DATA[idx] {
-                    defmt::error!(
-                        "[{}] got byte: 0b{:032b} 0x{:04x}, expecting 0b{:032b} 0x{:04x}",
-                        num,
-                        x,
-                        x,
-                        TEST_DATA[idx],
-                        TEST_DATA[idx]
-                    );
-                    errors += 1;
+            Either::Second(x) => {
+                match x {
+                    ReceivedOrTick::Some(x) => {
+                        if state {
+                            status_led.set_high();
+                        } else {
+                            status_led.set_low();
+                        }
+                        state = !state;
+                        defmt::info!("[{}] got byte: 0b{:032b} 0x{:04x}", num, x, x);
+                        if !is_right {
+                            // Send back the received byte
+                            hw.send(x).await;
+                        } else if x != TEST_DATA[idx] {
+                            defmt::error!(
+                                "[{}] got byte: 0b{:032b} 0x{:04x}, expecting 0b{:032b} 0x{:04x}",
+                                num,
+                                x,
+                                x,
+                                TEST_DATA[idx],
+                                TEST_DATA[idx]
+                            );
+                            errors += 1;
+                        }
+                    }
+                    ReceivedOrTick::Tick => {
+                        defmt::info!("[{}] tick", num);
+                    }
                 }
             }
         }

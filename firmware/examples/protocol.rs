@@ -27,7 +27,7 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
 use futures::future;
-use utils::protocol::{Hardware, SideProtocol};
+use utils::protocol::{Hardware, ReceivedOrTick, SideProtocol};
 use utils::serde::Event;
 
 use {defmt_rtt as _, panic_probe as _};
@@ -67,6 +67,8 @@ struct Hw<'a> {
     pin: PioPin<'a>,
     // error state
     on_error: bool,
+    // 1s ticker
+    ticker: Ticker,
 }
 
 impl<'a> Hw<'a> {
@@ -76,6 +78,7 @@ impl<'a> Hw<'a> {
             rx_sm,
             pin,
             on_error: false,
+            ticker: Ticker::every(Duration::from_secs(1)),
         }
     }
 
@@ -140,8 +143,17 @@ impl Hardware for Hw<'_> {
         self.enter_rx().await;
     }
 
-    async fn receive(&mut self) -> u32 {
-        self.rx_sm.rx().wait_pull().await
+    async fn receive(&mut self) -> ReceivedOrTick {
+        match select(self.rx_sm.rx().wait_pull(), self.ticker.next()).await {
+            Either::First(x) => {
+                self.ticker.reset();
+                ReceivedOrTick::Some(x)
+            }
+            Either::Second(_) => {
+                self.ticker.reset();
+                ReceivedOrTick::Tick
+            }
+        }
     }
 
     // Set error state
@@ -162,9 +174,14 @@ fn process_event(event: Event) {
 
 impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
     /// Create a new event buffer
-    pub fn new(name: &'static str, hw: W, status_led: &'a mut Output<'static>) -> Self {
+    pub fn new(
+        name: &'static str,
+        hw: W,
+        status_led: &'a mut Output<'static>,
+        is_master: bool,
+    ) -> Self {
         Self {
-            protocol: SideProtocol::new(hw, name),
+            protocol: SideProtocol::new(hw, name, is_master),
             status_led,
         }
     }
@@ -287,7 +304,7 @@ async fn ping_pong<'a>(
     let name = if is_right { "Right" } else { "Left" };
     let mut hw = Hw::new(tx_sm, rx_sm, pio_pin);
     hw.enter_rx().await;
-    let mut sides_comms: SidesComms<'_, Hw<'_>> = SidesComms::new(name, hw, status_led);
+    let mut sides_comms: SidesComms<'_, Hw<'_>> = SidesComms::new(name, hw, status_led, is_right);
     sides_comms.run().await;
 }
 
