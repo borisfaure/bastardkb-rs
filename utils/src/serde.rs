@@ -37,6 +37,16 @@ impl Event {
         matches!(self, Event::Ack(_))
     }
 
+    /// whether the event is a noop
+    pub fn is_noop(&self) -> bool {
+        matches!(self, Event::Noop)
+    }
+
+    /// whether the event is a ping
+    pub fn is_ping(&self) -> bool {
+        matches!(self, Event::Ping)
+    }
+
     /// whether the event is needs a ack
     pub fn needs_ack(&self) -> bool {
         !matches!(self, Event::Noop | Event::Ack(_) | Event::Retransmit(_))
