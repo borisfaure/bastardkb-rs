@@ -215,7 +215,7 @@ async fn main(spawner: Spawner) {
         is_right,
     );
 
-    let core = Core::new(hid_mouse, is_right);
+    let core = Core::new(hid_mouse);
     spawner.must_spawn(core::run(core));
 
     #[cfg(feature = "dilemma")]

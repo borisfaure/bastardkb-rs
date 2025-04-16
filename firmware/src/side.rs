@@ -12,11 +12,13 @@ use embassy_rp::{
     pio::{self, program::pio_asm, Direction, FifoJoin, ShiftDirection, StateMachine},
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
+use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
 use keyberon::layout::Event as KBEvent;
-use utils::protocol::{Hardware, SideProtocol};
+use utils::protocol::{Hardware, ReceivedOrTick, SideProtocol};
 use utils::serde::Event;
 
+/// Speed of the PIO state machine, in bps
 const SPEED: u64 = 460_800;
 
 /// Number of events in the channel to the other half of the keyboard
@@ -24,8 +26,13 @@ const NB_EVENTS: usize = 16;
 /// Channel to send `utils::serde::event` events to the layout handler
 pub static SIDE_CHANNEL: Channel<ThreadModeRawMutex, Event, NB_EVENTS> = Channel::new();
 
+/// Index of the TX state machine
 const TX: usize = 0;
+/// Index of the RX state machine
 const RX: usize = 1;
+
+/// Send PING every x seconds
+const PING_PERIOD_SEC: u64 = 1;
 
 pub type SmRx<'a> = StateMachine<'a, PIO1, { RX }>;
 pub type SmTx<'a> = StateMachine<'a, PIO1, { TX }>;
@@ -48,6 +55,9 @@ struct Hw<'a> {
     pin: PioPin<'a>,
     // error state
     on_error: bool,
+
+    // 1s ticker
+    ticker: Ticker,
 }
 
 impl<'a> Hw<'a> {
@@ -57,6 +67,7 @@ impl<'a> Hw<'a> {
             rx_sm,
             pin,
             on_error: false,
+            ticker: Ticker::every(Duration::from_secs(PING_PERIOD_SEC)),
         }
     }
 
@@ -121,8 +132,17 @@ impl Hardware for Hw<'_> {
         self.enter_rx().await;
     }
 
-    async fn receive(&mut self) -> u32 {
-        self.rx_sm.rx().wait_pull().await
+    async fn receive(&mut self) -> ReceivedOrTick {
+        match select(self.rx_sm.rx().wait_pull(), self.ticker.next()).await {
+            Either::First(x) => {
+                self.ticker.reset();
+                ReceivedOrTick::Some(x)
+            }
+            Either::Second(_) => {
+                self.ticker.reset();
+                ReceivedOrTick::Tick
+            }
+        }
     }
 
     // Set error state
@@ -183,9 +203,9 @@ async fn process_event(event: Event) {
 
 impl<W: Sized + Hardware> SidesComms<W> {
     /// Create a new event buffer
-    pub fn new(name: &'static str, hw: W, status_led: Output<'static>) -> Self {
+    pub fn new(name: &'static str, hw: W, status_led: Output<'static>, is_right: bool) -> Self {
         Self {
-            protocol: SideProtocol::new(hw, name),
+            protocol: SideProtocol::new(hw, name, is_right),
             status_led,
         }
     }
@@ -320,6 +340,6 @@ pub async fn init(
     let name = if is_right { "Right" } else { "Left" };
     let mut hw = Hw::new(tx_sm, rx_sm, pio_pin);
     hw.enter_rx().await;
-    let comms = SidesComms::new(name, hw, status_led);
+    let comms = SidesComms::new(name, hw, status_led, is_right);
     spawner.must_spawn(run(comms));
 }

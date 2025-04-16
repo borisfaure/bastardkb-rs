@@ -66,8 +66,6 @@ pub enum CustomEvent {
 /// Debug tick counter: every 5s
 #[cfg(feature = "debug_tick")]
 const TICK_DEBUG: usize = 5000;
-/// Side Ping message, every 3s
-const TICK_SIDE_PING: usize = 3000;
 
 /// Core keyboard/mouse handler
 pub struct Core<'a> {
@@ -84,13 +82,11 @@ pub struct Core<'a> {
     /// Debug tick counter
     #[cfg(feature = "debug_tick")]
     debug_tick: usize,
-    /// Whether this core is the right side
-    is_right: bool,
 }
 
 impl<'a> Core<'a> {
     /// Create a new core
-    pub fn new(hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>, is_right: bool) -> Self {
+    pub fn new(hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>) -> Self {
         Self {
             layout: Layout::new(&LAYERS),
             current_layer: 0,
@@ -99,7 +95,6 @@ impl<'a> Core<'a> {
             hid_mouse_writer,
             #[cfg(feature = "debug_tick")]
             debug_tick: TICK_DEBUG,
-            is_right,
         }
     }
 
