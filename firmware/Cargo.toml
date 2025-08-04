@@ -23,7 +23,7 @@ embassy-rp = { version = "0.4", features = ["rt", "defmt", "time-driver", "criti
 "rom-func-cache", "intrinsics", "rom-v2-intrinsics"] }
 embassy-usb = { version = "0.4",features = ["defmt"] }
 embassy-futures = "0.1"
-embassy-usb-logger = "0.4"
+embassy-usb-logger = "0.5"
 
 fixed = "1.24"
 fixed-macro = "1.2"
