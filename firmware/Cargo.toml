@@ -15,7 +15,7 @@ default = ["keymap_borisfaure", "dilemma"]
 
 [dependencies]
 utils = {path = "../utils", features = ["defmt"]}
-embassy-embedded-hal = { version = "0.3", features = ["defmt"] }
+embassy-embedded-hal = { version = "0.4", features = ["defmt"] }
 embassy-sync = { version = "0.7", features = ["defmt"] }
 embassy-executor = { version = "0.7", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
