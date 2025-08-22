@@ -154,12 +154,12 @@ impl<T: Copy> CircBuf<T> {
     }
 
     /// Iterator on all the elements
-    pub fn iter(&self) -> core::slice::Iter<Option<T>> {
+    pub fn iter(&self) -> core::slice::Iter<'_, Option<T>> {
         self.arr.iter()
     }
 
     /// Mut Iterator on all the elements
-    pub fn iter_mut(&mut self) -> core::slice::IterMut<Option<T>> {
+    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, Option<T>> {
         self.arr.iter_mut()
     }
 }
