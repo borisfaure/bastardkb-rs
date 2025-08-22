@@ -22,6 +22,7 @@ use embassy_rp::{
         self, program::pio_asm, Common, Direction, FifoJoin,
         InterruptHandler as PioInterruptHandler, Pio, ShiftDirection, StateMachine,
     },
+    Peri,
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
@@ -292,7 +293,7 @@ async fn ping_pong<'a>(
     mut pio1_common: PioCommon<'a>,
     sm0: SmTx<'a>,
     sm1: SmRx<'a>,
-    gpio_pin1: PIN_1,
+    gpio_pin1: Peri<'static, PIN_1>,
     status_led: &mut Output<'static>,
     is_right: bool,
 ) {
