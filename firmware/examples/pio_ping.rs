@@ -6,13 +6,16 @@
 
 use defmt::info;
 use embassy_executor::Spawner;
-use embassy_rp::bind_interrupts;
-use embassy_rp::clocks::clk_sys_freq;
-use embassy_rp::gpio::{Level, Output};
-use embassy_rp::peripherals::{PIN_1, PIN_29, PIO1};
-use embassy_rp::pio::{
-    self, program::pio_file, Direction, FifoJoin, InterruptHandler as PioInterruptHandler, Pio,
-    ShiftDirection, StateMachine,
+use embassy_rp::{
+    bind_interrupts,
+    clocks::clk_sys_freq,
+    gpio::{Level, Output},
+    peripherals::{PIN_1, PIN_29, PIO1},
+    pio::{
+        self, program::pio_file, Direction, FifoJoin, InterruptHandler as PioInterruptHandler, Pio,
+        ShiftDirection, StateMachine,
+    },
+    Peri,
 };
 use fixed::{traits::ToFixed, types::U56F8};
 use {defmt_rtt as _, panic_probe as _};
@@ -32,8 +35,8 @@ pub async fn full_duplex_comm<'a>(
     mut pio_common: PioCommon<'a>,
     sm0: SmTx<'a>,
     sm1: SmRx<'a>,
-    gpio_pin_1: PIN_1,
-    gpio_pin_29: PIN_29,
+    gpio_pin_1: Peri<'static, PIN_1>,
+    gpio_pin_29: Peri<'static, PIN_29>,
     status_led: &mut Output<'a>,
 ) {
     let mut pin_tx = pio_common.make_pio_pin(gpio_pin_1);
