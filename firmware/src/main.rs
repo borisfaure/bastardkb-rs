@@ -7,15 +7,15 @@ use crate::keys::Matrix;
 use crate::trackball::Trackball;
 use cortex_m::singleton;
 use embassy_executor::Spawner;
-use embassy_rp::bind_interrupts;
-#[cfg(feature = "dilemma")]
-use embassy_rp::dma::Channel;
-use embassy_rp::gpio::{Input, Level, Output, Pull};
-use embassy_rp::peripherals::{PIO0, PIO1, USB};
-use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
 #[cfg(feature = "cnano")]
 use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
-use embassy_rp::usb::{Driver, InterruptHandler as USBInterruptHandler};
+use embassy_rp::{
+    bind_interrupts,
+    gpio::{Input, Level, Output, Pull},
+    peripherals::{PIO0, PIO1, USB},
+    pio::{InterruptHandler as PioInterruptHandler, Pio},
+    usb::{Driver, InterruptHandler as USBInterruptHandler},
+};
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, HidWriter, State};
 use embassy_usb::Builder;
 use {defmt_rtt as _, panic_probe as _};
@@ -207,7 +207,7 @@ async fn main(spawner: Spawner) {
         &spawner,
         pio0.common,
         pio0.sm0,
-        p.DMA_CH0,
+        p.DMA_CH0.into(),
         #[cfg(feature = "cnano")]
         p.PIN_0,
         #[cfg(feature = "dilemma")]
@@ -252,9 +252,9 @@ async fn main(spawner: Spawner) {
             miso: p.PIN_20, // B3
             cs: p.PIN_21,   // B4
         };
-        let tx_dma = p.DMA_CH1.degrade();
-        let rx_dma = p.DMA_CH2.degrade();
-        trackpad::init(&spawner, p.SPI0, pins, tx_dma, rx_dma);
+        let tx_dma = p.DMA_CH1;
+        let rx_dma = p.DMA_CH2;
+        trackpad::init(&spawner, p.SPI0, pins, tx_dma.into(), rx_dma.into());
     }
 
     defmt::info!("let's go!");

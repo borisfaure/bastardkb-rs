@@ -6,6 +6,7 @@ use embassy_rp::{
     gpio::{self, Output},
     peripherals::{PIN_20, PIN_21, PIN_22, PIN_23, SPI0},
     spi::{self, Async, Spi},
+    Peri,
 };
 use embassy_time::{Duration, Ticker};
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -20,18 +21,18 @@ const REFRESH_RATE_MS: u64 = 10;
 type TrackpadSpi = ExclusiveDevice<Spi<'static, SPI0, Async>, Output<'static>, embassy_time::Delay>;
 
 pub struct TrackpadPins {
-    pub clk: PIN_22,
-    pub mosi: PIN_23,
-    pub miso: PIN_20,
-    pub cs: PIN_21,
+    pub clk: Peri<'static, PIN_22>,
+    pub mosi: Peri<'static, PIN_23>,
+    pub miso: Peri<'static, PIN_20>,
+    pub cs: Peri<'static, PIN_21>,
 }
 
 pub fn init(
     spawner: &Spawner,
-    spi: SPI0,
+    spi: Peri<'static, SPI0>,
     pins: TrackpadPins,
-    tx_dma: AnyChannel,
-    rx_dma: AnyChannel,
+    tx_dma: Peri<'static, AnyChannel>,
+    rx_dma: Peri<'static, AnyChannel>,
 ) {
     let mut config = spi::Config::default();
     config.phase = spi::Phase::CaptureOnSecondTransition;

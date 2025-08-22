@@ -10,6 +10,7 @@ use embassy_rp::{
     gpio::{Drive, Level, Output, Pull},
     peripherals::{PIN_1, PIO1},
     pio::{self, program::pio_asm, Direction, FifoJoin, ShiftDirection, StateMachine},
+    Peri,
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
@@ -328,7 +329,7 @@ pub async fn init(
     mut pio_common: PioCommon<'static>,
     sm0: SmTx<'static>,
     sm1: SmRx<'static>,
-    gpio_pin1: PIN_1,
+    gpio_pin1: Peri<'static, PIN_1>,
     status_led: Output<'static>,
     is_right: bool,
 ) {

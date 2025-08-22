@@ -1,14 +1,15 @@
 use crate::side::SIDE_CHANNEL;
 use embassy_executor::Spawner;
 use embassy_futures::select::{select3, Either3};
-use embassy_rp::{clocks, into_ref, Peripheral, PeripheralRef};
 use embassy_rp::{
+    clocks,
     dma::{AnyChannel, Channel as DmaChannel},
     peripherals::PIO0,
     pio::{
         program::pio_file, Common, Config as PioConfig, FifoJoin, Instance, PioPin, ShiftConfig,
         ShiftDirection, StateMachine,
     },
+    Peri,
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
@@ -44,22 +45,20 @@ pub enum AnimCommand {
 pub static ANIM_CHANNEL: Channel<ThreadModeRawMutex, AnimCommand, NB_EVENTS> = Channel::new();
 
 /// WS2812 driver
-pub struct Ws2812<'d, P: Instance, const S: usize, const N: usize> {
+pub struct Ws2812<'d, P: Instance, const S: usize, const N: usize, DMA: DmaChannel> {
     /// DMA channel to push RGB data to the PIO state machine
-    dma: PeripheralRef<'d, AnyChannel>,
+    dma: Peri<'d, DMA>,
     /// PIO state machine to control the WS2812 chain
     sm: StateMachine<'d, P, S>,
 }
 
-impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
+impl<'d, P: Instance, const S: usize, const N: usize, DMA: DmaChannel> Ws2812<'d, P, S, N, DMA> {
     pub fn new(
         pio: &mut Common<'d, P>,
         mut sm: StateMachine<'d, P, S>,
-        dma: impl Peripheral<P = impl DmaChannel> + 'd,
-        pin: impl PioPin,
+        dma: Peri<'d, DMA>,
+        pin: Peri<'d, impl PioPin>,
     ) -> Self {
-        into_ref!(dma);
-
         // Setup sm0
 
         // prepare the PIO program
@@ -92,10 +91,7 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
         sm.set_config(&cfg);
         sm.set_enable(true);
 
-        Self {
-            dma: dma.map_into(),
-            sm,
-        }
+        Self { dma, sm }
     }
 
     pub async fn write(&mut self, colors: &[RGB8; N]) {
@@ -119,7 +115,7 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
 }
 
 #[embassy_executor::task]
-pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS>, is_right: bool) {
+pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS, AnyChannel>, is_right: bool) {
     // Loop forever making RGB values and pushing them out to the WS2812.
     let mut ticker = Ticker::every(Duration::from_hz(24));
 
@@ -173,8 +169,8 @@ pub fn init(
     spawner: &Spawner,
     mut common: Common<'static, PIO0>,
     sm0: StateMachine<'static, PIO0, 0>,
-    dma: impl DmaChannel,
-    pin: impl PioPin,
+    dma: Peri<'static, AnyChannel>,
+    pin: Peri<'static, impl PioPin>,
     is_right: bool,
 ) {
     let ws2812 = Ws2812::new(&mut common, sm0, dma, pin);
