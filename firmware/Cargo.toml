@@ -17,11 +17,11 @@ default = ["keymap_borisfaure", "dilemma"]
 utils = {path = "../utils", features = ["defmt"]}
 embassy-embedded-hal = { version = "0.4", features = ["defmt"] }
 embassy-sync = { version = "0.7", features = ["defmt"] }
-embassy-executor = { version = "0.7", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
+embassy-executor = { version = "0.8", features = ["arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { version = "0.4", features = ["defmt", "defmt-timestamp-uptime"] }
-embassy-rp = { version = "0.4", features = ["rt", "defmt", "time-driver", "critical-section-impl", "rp2040",
+embassy-rp = { version = "0.7", features = ["rt", "defmt", "time-driver", "critical-section-impl", "rp2040",
 "rom-func-cache", "intrinsics", "rom-v2-intrinsics"] }
-embassy-usb = { version = "0.4",features = ["defmt"] }
+embassy-usb = { version = "0.5",features = ["defmt"] }
 embassy-futures = "0.1"
 embassy-usb-logger = "0.5"
 
