@@ -89,8 +89,14 @@ impl<'a> Hw<'a> {
             yield_now().await;
         }
 
-        // Wait a bit after the last sent message
-        cortex_m::asm::delay(250);
+        // Calculate delay needed: time for ~34 bits at current speed
+        // 32 data bits + start bit + stop bit = ~34 bits
+        // At 460800 bps: 34 bits = ~74 microseconds
+        // Convert to CPU cycles at 125MHz: 74us * 125 = 9250 cycles
+        // Add extra time for the other side to switch from RX to TX
+        let sys_freq = clocks::clk_sys_freq() as u64;
+        let bit_time_cycles = (sys_freq * 50) / SPEED; // Increased from 34 to 50 bits worth of time
+        cortex_m::asm::delay(bit_time_cycles as u32);
 
         // Disable TX state machine before manipulating TX pin
         self.tx_sm.set_enable(false);
@@ -102,11 +108,12 @@ impl<'a> Hw<'a> {
         self.rx_sm.set_pin_dirs(Direction::In, &[&self.pin]);
         self.tx_sm.set_pin_dirs(Direction::In, &[&self.pin]);
 
-        // Ensure the pin is HIGH
-        self.rx_sm.set_pins(Level::High, &[&self.pin]);
-        self.tx_sm.set_pins(Level::High, &[&self.pin]);
+        // Clear RX FIFO before restarting
+        while !self.rx_sm.rx().empty() {
+            let _ = self.rx_sm.rx().try_pull();
+        }
 
-        // Restart RX state machine to prepare for transmission
+        // Restart RX state machine to prepare for reception
         self.rx_sm.restart();
         // Enable RX state machine
         // This allows it to start receiving data from the line
@@ -256,18 +263,24 @@ fn task_rx<'a>(common: &mut PioCommon<'a>, mut sm: SmRx<'a>, pin: &PioPin<'a>) -
     let rx_prog = pio_asm!(
         ".wrap_target",
         "start:",
-        // Wait for the line to go low to start receiving
+        // Wait for the line to go low to start receiving (start bit detected)
         "wait  0 pin, 0",
-        // Set the counter to 31 bits to receive and wait 4 cycles
-        "set   x, 31    [4]",
+        // TX timing: each bit is 4 PIO cycles
+        //   Start bit: "set x, 31 side 0 [3]" = 4 cycles
+        //   Data bits: "out pins, 1" + "jmp x--, bitloop [2]" = 1+1+2 = 4 cycles
+        // After wait completes, we're ~1 cycle into start bit
+        // Need to wait 3 more cycles of start bit + 2 cycles to middle of first data bit = 5 total
+        // But we get 2 from "set x, 31 [1]", so wait 3 more with nop
+        "nop [2]",     // Wait 3 cycles
+        "set   x, 31", // Wait 1 cycle, then start sampling
         "bitloop:",
-        // Read a bit at a time, starting from the LSB
+        // Sample the bit in middle
         "in    pins, 1",
-        // Loop until all bits are received and wait 2 cycles
+        // Wait 2 more cycles, then loop (total 4 cycles per bit: in[1] + jmp[1] + delay[2])
         "jmp   x--, bitloop [2]",
         // Push the received data to the FIFO
         "push block",
-        // Wait for the line to go high to stop receiving the next byte
+        // Wait for the line to go high before next transmission
         "wait  1 pin, 0",
         ".wrap"
     );
