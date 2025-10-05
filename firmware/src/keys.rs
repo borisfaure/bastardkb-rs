@@ -1,5 +1,6 @@
 use crate::core::LAYOUT_CHANNEL;
 use crate::device::is_host;
+#[cfg(feature = "input_leds")]
 use crate::rgb_leds::RGB_CHANNEL;
 use crate::side::SIDE_CHANNEL;
 use embassy_executor::Spawner;
@@ -43,7 +44,7 @@ impl<'a> Matrix<'a> {
         Self { rows, cols }
     }
 
-    fn scan(&mut self) -> MatrixState {
+    async fn scan(&mut self) -> MatrixState {
         let mut matrix_state = [[false; COLS]; ROWS];
         for (c, col) in self.cols.iter_mut().enumerate() {
             col.set_low();
@@ -149,10 +150,13 @@ async fn matrix_scanner(
                     defmt::error!("Layout channel is full");
                 }
                 LAYOUT_CHANNEL.send(event).await;
-                if RGB_CHANNEL.is_full() {
-                    defmt::error!("RGB channel is full");
+                #[cfg(feature = "input_leds")]
+                {
+                    if RGB_CHANNEL.is_full() {
+                        defmt::error!("RGB channel is full");
+                    }
+                    RGB_CHANNEL.send(event).await;
                 }
-                RGB_CHANNEL.send(event).await;
             } else {
                 match event {
                     KBEvent::Press(r, c) => {
@@ -160,20 +164,26 @@ async fn matrix_scanner(
                             defmt::error!("Side channel is full");
                         }
                         SIDE_CHANNEL.send(Event::Press(r, c)).await;
-                        if RGB_CHANNEL.is_full() {
-                            defmt::error!("RGB channel is full");
+                        #[cfg(feature = "input_leds")]
+                        {
+                            if RGB_CHANNEL.is_full() {
+                                defmt::error!("RGB channel is full");
+                            }
+                            RGB_CHANNEL.send(event).await;
                         }
-                        RGB_CHANNEL.send(event).await;
                     }
                     KBEvent::Release(r, c) => {
                         if SIDE_CHANNEL.is_full() {
                             defmt::error!("Side channel is full");
                         }
                         SIDE_CHANNEL.send(Event::Release(r, c)).await;
-                        if RGB_CHANNEL.is_full() {
-                            defmt::error!("RGB channel is full");
+                        #[cfg(feature = "input_leds")]
+                        {
+                            if RGB_CHANNEL.is_full() {
+                                defmt::error!("RGB channel is full");
+                            }
+                            RGB_CHANNEL.send(event).await;
                         }
-                        RGB_CHANNEL.send(event).await;
                     }
                 }
             }

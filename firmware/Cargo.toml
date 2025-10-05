@@ -10,9 +10,10 @@ keymap_borisfaure = []
 keymap_test = []
 debug_tick = []
 timing_logs = []
+input_leds = []
 cnano = ["utils/cnano"]
 dilemma = ["utils/dilemma"]
-default = ["keymap_borisfaure", "dilemma", "timing_logs"]
+default = ["keymap_borisfaure", "dilemma"]
 
 [dependencies]
 utils = {path = "../utils", features = ["defmt"]}
