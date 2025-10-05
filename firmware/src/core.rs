@@ -8,6 +8,8 @@ use embassy_futures::select::{select, Either};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
+#[cfg(feature = "timing_logs")]
+use embassy_time::Instant;
 use embassy_time::{Duration, Ticker};
 use embassy_usb::class::hid::HidWriter;
 use keyberon::key_code::KeyCode;
@@ -112,12 +114,15 @@ impl<'a> Core<'a> {
 
     /// On key event
     fn on_key_event(&mut self, event: KBEvent) {
-        defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
+        //defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
         self.layout.event(event);
     }
 
     /// Process the state of the keyboard and mouse
     async fn tick(&mut self) {
+        #[cfg(feature = "timing_logs")]
+        let start = Instant::now();
+
         #[cfg(feature = "debug_tick")]
         {
             self.debug_tick -= 1;
@@ -242,10 +247,85 @@ impl<'a> Core<'a> {
 /// Handles layout events into the keymap and sends HID reports to the HID handler
 pub async fn run(mut core: Core<'static>) {
     let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
+    #[cfg(feature = "timing_logs")]
+    let start_time = Instant::now();
+    #[cfg(feature = "timing_logs")]
+    let mut tick_count: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut max_lateness_us: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut total_lateness_us: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut timing_tick_count: usize = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut timing_total_us: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut timing_max_us: u64 = 0;
+
     loop {
         match select(ticker.next(), LAYOUT_CHANNEL.receive()).await {
             Either::First(_) => {
+                #[cfg(feature = "timing_logs")]
+                let start = Instant::now();
+                #[cfg(feature = "timing_logs")]
+                {
+                    tick_count += 1;
+                    let expected = start_time + Duration::from_millis(tick_count * REFRESH_RATE_MS);
+                    if start > expected {
+                        let lateness_us = (start - expected).as_micros();
+                        total_lateness_us += lateness_us;
+                        if lateness_us > max_lateness_us {
+                            max_lateness_us = lateness_us;
+                        }
+                        if lateness_us > 100 {
+                            defmt::warn!(
+                                "[TIMING] core ticker late by {}us (tick #{})",
+                                lateness_us,
+                                tick_count
+                            );
+                        }
+                    }
+                    // Report lateness stats every 5000 ticks
+                    if tick_count % 5000 == 0 {
+                        let avg_lateness_us = total_lateness_us / 5000;
+                        defmt::info!(
+                            "[TIMING] core ticker stats: avg={}us max={}us (over 5000 ticks)",
+                            avg_lateness_us,
+                            max_lateness_us
+                        );
+                        total_lateness_us = 0;
+                        max_lateness_us = 0;
+                    }
+                }
                 core.tick().await;
+
+                #[cfg(feature = "timing_logs")]
+                {
+                    let elapsed_us = start.elapsed().as_micros();
+                    timing_total_us += elapsed_us;
+                    timing_tick_count += 1;
+                    if elapsed_us > timing_max_us {
+                        timing_max_us = elapsed_us;
+                    }
+                    // Log every 5 seconds
+                    if timing_tick_count >= 5000 {
+                        if elapsed_us > 1100 {
+                            defmt::warn!(
+                                "[TIMING] core::tick took {}us which is too long!",
+                                elapsed_us
+                            );
+                        }
+                        defmt::info!(
+                            "[TIMING] core::tick total={}ms max={}us (over {} ticks in 5s)",
+                            timing_total_us / 1000,
+                            timing_max_us,
+                            timing_tick_count
+                        );
+                        timing_tick_count = 0;
+                        timing_total_us = 0;
+                        timing_max_us = 0;
+                    }
+                }
             }
             Either::Second(event) => {
                 core.on_key_event(event);

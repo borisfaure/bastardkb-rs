@@ -1,8 +1,10 @@
 use crate::core::LAYOUT_CHANNEL;
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use embassy_executor::Spawner;
+#[cfg(feature = "timing_logs")]
+use embassy_futures::select::select3;
 use embassy_futures::{
-    select::{select, Either},
+    select::{select, Either, Either3},
     yield_now,
 };
 use embassy_rp::{
@@ -13,6 +15,8 @@ use embassy_rp::{
     Peri,
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
+#[cfg(feature = "timing_logs")]
+use embassy_time::Instant;
 use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
 use keyberon::layout::Event as KBEvent;
@@ -45,6 +49,18 @@ struct SidesComms<W: Sized + Hardware> {
     protocol: SideProtocol<W>,
     /// Status LED
     status_led: Output<'static>,
+    /// Timing logs: tick counter
+    #[cfg(feature = "timing_logs")]
+    timing_tick_count: usize,
+    /// Timing logs: total time in microseconds
+    #[cfg(feature = "timing_logs")]
+    timing_total_us: u64,
+    /// Timing logs: max time in microseconds
+    #[cfg(feature = "timing_logs")]
+    timing_max_us: u64,
+    /// Timing logs: ticker for periodic reporting
+    #[cfg(feature = "timing_logs")]
+    timing_ticker: Ticker,
 }
 
 struct Hw<'a> {
@@ -208,6 +224,14 @@ impl<W: Sized + Hardware> SidesComms<W> {
         Self {
             protocol: SideProtocol::new(hw, name, is_right),
             status_led,
+            #[cfg(feature = "timing_logs")]
+            timing_tick_count: 0,
+            #[cfg(feature = "timing_logs")]
+            timing_total_us: 0,
+            #[cfg(feature = "timing_logs")]
+            timing_max_us: 0,
+            #[cfg(feature = "timing_logs")]
+            timing_ticker: Ticker::every(Duration::from_secs(5)),
         }
     }
 
@@ -215,11 +239,42 @@ impl<W: Sized + Hardware> SidesComms<W> {
     pub async fn run(&mut self) {
         // Wait for the other side to boot
         loop {
-            match select(SIDE_CHANNEL.receive(), self.protocol.receive()).await {
-                Either::First(event) => {
+            #[cfg(feature = "timing_logs")]
+            let result = select3(
+                SIDE_CHANNEL.receive(),
+                self.protocol.receive(),
+                self.timing_ticker.next(),
+            )
+            .await;
+
+            #[cfg(not(feature = "timing_logs"))]
+            let result: Either3<Event, Event, ()> =
+                match select(SIDE_CHANNEL.receive(), self.protocol.receive()).await {
+                    Either::First(event) => Either3::First(event),
+                    Either::Second(x) => Either3::Second(x),
+                };
+
+            match result {
+                Either3::First(event) => {
+                    #[cfg(feature = "timing_logs")]
+                    let start = Instant::now();
+
                     self.protocol.queue_event(event).await;
+
+                    #[cfg(feature = "timing_logs")]
+                    {
+                        let elapsed_us = start.elapsed().as_micros();
+                        self.timing_total_us += elapsed_us;
+                        self.timing_tick_count += 1;
+                        if elapsed_us > self.timing_max_us {
+                            self.timing_max_us = elapsed_us;
+                        }
+                    }
                 }
-                Either::Second(x) => {
+                Either3::Second(x) => {
+                    #[cfg(feature = "timing_logs")]
+                    let start = Instant::now();
+
                     #[cfg(feature = "cnano")]
                     self.status_led.set_low();
                     #[cfg(feature = "dilemma")]
@@ -229,7 +284,31 @@ impl<W: Sized + Hardware> SidesComms<W> {
                     self.status_led.set_high();
                     #[cfg(feature = "dilemma")]
                     self.status_led.set_low();
+
+                    #[cfg(feature = "timing_logs")]
+                    {
+                        let elapsed_us = start.elapsed().as_micros();
+                        self.timing_total_us += elapsed_us;
+                        self.timing_tick_count += 1;
+                        if elapsed_us > self.timing_max_us {
+                            self.timing_max_us = elapsed_us;
+                        }
+                    }
                 }
+                #[cfg(feature = "timing_logs")]
+                Either3::Third(_) => {
+                    defmt::info!(
+                        "[TIMING] side::run total={}ms max={}us (over {} events in 5s)",
+                        self.timing_total_us / 1000,
+                        self.timing_max_us,
+                        self.timing_tick_count
+                    );
+                    self.timing_tick_count = 0;
+                    self.timing_total_us = 0;
+                    self.timing_max_us = 0;
+                }
+                #[cfg(not(feature = "timing_logs"))]
+                Either3::Third(_) => unreachable!(),
             }
         }
     }

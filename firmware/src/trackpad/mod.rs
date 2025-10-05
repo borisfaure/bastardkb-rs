@@ -9,6 +9,8 @@ use embassy_rp::{
     Peri,
 };
 use embassy_time::{Duration, Ticker};
+#[cfg(feature = "timing_logs")]
+use embassy_time::Instant;
 use embedded_hal_bus::spi::ExclusiveDevice;
 
 pub mod driver;
@@ -58,9 +60,19 @@ async fn trackpad_task(spi: TrackpadSpi) {
 
     let mut ticker = Ticker::every(Duration::from_millis(REFRESH_RATE_MS));
 
+    #[cfg(feature = "timing_logs")]
+    let mut timing_tick_count: usize = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut timing_total_us: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut timing_max_us: u64 = 0;
+
     let mut last_dx = 0_i8;
     let mut last_dy = 0_i8;
     loop {
+        #[cfg(feature = "timing_logs")]
+        let start = Instant::now();
+
         match trackpad.get_report().await {
             Ok(Some((dx, dy))) => {
                 if last_dx != dx || last_dy != dy {
@@ -81,6 +93,28 @@ async fn trackpad_task(spi: TrackpadSpi) {
                 error!("Failed to get a trackpad report");
             }
             _ => (),
+        }
+
+        #[cfg(feature = "timing_logs")]
+        {
+            let elapsed_us = start.elapsed().as_micros();
+            timing_total_us += elapsed_us;
+            timing_tick_count += 1;
+            if elapsed_us > timing_max_us {
+                timing_max_us = elapsed_us;
+            }
+            // Log every 500 polls (5 seconds at 10ms intervals)
+            if timing_tick_count >= 500 {
+                defmt::info!(
+                    "[TIMING] trackpad total={}ms max={}us (over {} polls in 5s)",
+                    timing_total_us / 1000,
+                    timing_max_us,
+                    timing_tick_count
+                );
+                timing_tick_count = 0;
+                timing_total_us = 0;
+                timing_max_us = 0;
+            }
         }
 
         ticker.next().await;

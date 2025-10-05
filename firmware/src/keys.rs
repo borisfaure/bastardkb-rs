@@ -4,6 +4,8 @@ use crate::rgb_leds::RGB_CHANNEL;
 use crate::side::SIDE_CHANNEL;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
+#[cfg(feature = "timing_logs")]
+use embassy_time::Instant;
 use embassy_time::{Duration, Ticker};
 use keyberon::debounce::Debouncer;
 use keyberon::layout::Event as KBEvent;
@@ -77,7 +79,24 @@ async fn matrix_scanner(
     #[cfg(feature = "dilemma")]
     let mut last_pin_a = encoder_pin_a.is_high();
 
+    #[cfg(feature = "timing_logs")]
+    let mut timing_tick_count: usize = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut timing_total_us: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut timing_max_us: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let start_time = Instant::now();
+    #[cfg(feature = "timing_logs")]
+    let mut tick_lateness_count: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut max_lateness_us: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut total_lateness_us: u64 = 0;
+
     loop {
+        #[cfg(feature = "timing_logs")]
+        let start = Instant::now();
         let transform = if is_right {
             |e: KBEvent| {
                 e.transform(|r, c| {
@@ -123,8 +142,8 @@ async fn matrix_scanner(
         };
         let is_host = is_host();
 
-        for event in debouncer.events(matrix.scan()).map(transform) {
-            defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
+        for event in debouncer.events(matrix.scan().await).map(transform) {
+            //defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
             if is_host {
                 if LAYOUT_CHANNEL.is_full() {
                     defmt::error!("Layout channel is full");
@@ -181,7 +200,62 @@ async fn matrix_scanner(
             }
         }
 
+        #[cfg(feature = "timing_logs")]
+        {
+            let elapsed_us = start.elapsed().as_micros();
+            timing_total_us += elapsed_us;
+            timing_tick_count += 1;
+            if elapsed_us > timing_max_us {
+                timing_max_us = elapsed_us;
+            }
+            // Log every 5 seconds
+            if timing_tick_count >= 5000 {
+                defmt::info!(
+                    "[TIMING] matrix_scanner total={}ms max={}us (over {} scans in 5s)",
+                    timing_total_us / 1000,
+                    timing_max_us,
+                    timing_tick_count
+                );
+                timing_tick_count = 0;
+                timing_total_us = 0;
+                timing_max_us = 0;
+            }
+        }
+
         ticker.next().await;
+
+        #[cfg(feature = "timing_logs")]
+        {
+            let now = Instant::now();
+            tick_lateness_count += 1;
+            let expected = start_time
+                + Duration::from_micros((tick_lateness_count * 1000000) / REFRESH_RATE as u64);
+            if now > expected {
+                let lateness_us = (now - expected).as_micros();
+                total_lateness_us += lateness_us;
+                if lateness_us > max_lateness_us {
+                    max_lateness_us = lateness_us;
+                }
+                if lateness_us > 100 {
+                    defmt::warn!(
+                        "[TIMING] matrix_scanner ticker late by {}us (tick #{})",
+                        lateness_us,
+                        tick_lateness_count
+                    );
+                }
+            }
+            // Report lateness stats every 5000 ticks
+            if tick_lateness_count % 5000 == 0 {
+                let avg_lateness_us = total_lateness_us / 5000;
+                defmt::info!(
+                    "[TIMING] matrix_scanner ticker stats: avg={}us max={}us (over 5000 ticks)",
+                    avg_lateness_us,
+                    max_lateness_us
+                );
+                total_lateness_us = 0;
+                max_lateness_us = 0;
+            }
+        }
     }
 }
 

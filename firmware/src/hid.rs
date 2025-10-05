@@ -5,6 +5,8 @@ use embassy_executor::Spawner;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
+#[cfg(feature = "timing_logs")]
+use embassy_time::Instant;
 use embassy_usb::class::hid::{ReportId, RequestHandler};
 use embassy_usb::control::OutResponse;
 
@@ -266,13 +268,45 @@ impl HidRequestHandler<'_> {
 /// Loop to read HID KeyboardReport reports from the channel and send them over USB
 #[embassy_executor::task]
 pub async fn hid_kb_writer_handler(mut writer: HidWriter<'static, 'static>) {
+    #[cfg(feature = "timing_logs")]
+    let mut timing_tick_count: usize = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut timing_total_us: u64 = 0;
+    #[cfg(feature = "timing_logs")]
+    let mut timing_max_us: u64 = 0;
+
     loop {
+        #[cfg(feature = "timing_logs")]
+        let start = Instant::now();
+
         let hid_report = HID_KB_CHANNEL.receive().await;
         if is_host() {
             let raw = hid_report.serialize();
             match writer.write(&raw).await {
                 Ok(()) => {}
                 Err(e) => warn!("Failed to send report: {:?}", e),
+            }
+        }
+
+        #[cfg(feature = "timing_logs")]
+        {
+            let elapsed_us = start.elapsed().as_micros();
+            timing_total_us += elapsed_us;
+            timing_tick_count += 1;
+            if elapsed_us > timing_max_us {
+                timing_max_us = elapsed_us;
+            }
+            // Log every 1000 reports
+            if timing_tick_count >= 1000 {
+                info!(
+                    "[TIMING] hid_kb_writer total={}ms max={}us (over {} reports)",
+                    timing_total_us / 1000,
+                    timing_max_us,
+                    timing_tick_count
+                );
+                timing_tick_count = 0;
+                timing_total_us = 0;
+                timing_max_us = 0;
             }
         }
     }
