@@ -236,6 +236,18 @@ fn task_tx<'a>(common: &mut PioCommon<'a>, mut sm: SmTx<'a>, pin: &mut PioPin<'a
         "out   pins, 1",
         // Loop until all bits are sent and wait 2 cycles
         "jmp   x--, bitloop [2]",
+        // After transmission, delay to give receiver time to process and respond
+        // This matches the firmware's PIO delay for realistic testing
+        "set   y, 7  side 1",    // Set line high (idle) and outer loop counter
+        "outer_loop:",
+        "set   x, 31",           // Inner loop counter (32 iterations)
+        "inner_loop:",
+        "nop [7]",               // Wait 8 PIO cycles
+        "nop [7]",               // Another 8 cycles
+        "nop [7]",               // Another 8 cycles
+        "nop [7]",               // Another 8 cycles (total 33 per inner loop)
+        "jmp   x--, inner_loop", // Loop 32 times per outer iteration
+        "jmp   y--, outer_loop", // Outer loop 8 times: 8*32*33 = 8448 cycles ≈ 540us
         ".wrap"
     );
     let mut cfg = embassy_rp::pio::Config::default();
