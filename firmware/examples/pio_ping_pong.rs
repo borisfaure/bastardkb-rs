@@ -24,7 +24,8 @@ use embassy_rp::{
     },
     Peri,
 };
-use embassy_time::{Duration, Ticker};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
+use embassy_time::{Duration, Ticker, Timer};
 use fixed::{traits::ToFixed, types::U56F8};
 use utils::protocol::{Hardware, ReceivedOrTick};
 
@@ -183,6 +184,18 @@ fn task_tx<'a>(common: &mut PioCommon<'a>, mut sm: SmTx<'a>, pin: &mut PioPin<'a
         "out   pins, 1",
         // Loop until all bits are sent and wait 2 cycles
         "jmp   x--, bitloop [2]",
+        // After transmission, delay to give receiver time to process and respond
+        // This matches the firmware's PIO delay for realistic testing
+        "set   y, 7  side 1",    // Set line high (idle) and outer loop counter
+        "outer_loop:",
+        "set   x, 31",           // Inner loop counter (32 iterations)
+        "inner_loop:",
+        "nop [7]",               // Wait 8 PIO cycles
+        "nop [7]",               // Another 8 cycles
+        "nop [7]",               // Another 8 cycles
+        "nop [7]",               // Another 8 cycles (total 33 per inner loop)
+        "jmp   x--, inner_loop", // Loop 32 times per outer iteration
+        "jmp   y--, outer_loop", // Outer loop 8 times: 8*32*33 = 8448 cycles ≈ 540us
         ".wrap"
     );
     let mut cfg = embassy_rp::pio::Config::default();
@@ -273,6 +286,68 @@ const TEST_DATA: [u32; 24] = [
     T0, T1, T3, T7, TA, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, TA, TB, TC, TD, TE, TF, B, C, M,
 ];
 
+// Channels for inter-task communication (ring topology)
+static CHANNEL_0_TO_1: Channel<ThreadModeRawMutex, u32, 2> = Channel::new();
+static CHANNEL_1_TO_2: Channel<ThreadModeRawMutex, u32, 2> = Channel::new();
+static CHANNEL_2_TO_3: Channel<ThreadModeRawMutex, u32, 2> = Channel::new();
+static CHANNEL_3_TO_4: Channel<ThreadModeRawMutex, u32, 2> = Channel::new();
+static CHANNEL_4_TO_0: Channel<ThreadModeRawMutex, u32, 2> = Channel::new();
+
+const CHANNEL_TASK_DELAY_MS: u64 = 20;
+
+#[embassy_executor::task]
+async fn channel_task_0() {
+    let mut counter = 0u32;
+    CHANNEL_0_TO_1.send(counter).await;
+
+    loop {
+        let value = CHANNEL_4_TO_0.receive().await;
+        counter = value.wrapping_add(1);
+        Timer::after(Duration::from_millis(CHANNEL_TASK_DELAY_MS)).await;
+        CHANNEL_0_TO_1.send(counter).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn channel_task_1() {
+    loop {
+        let value = CHANNEL_0_TO_1.receive().await;
+        let new_value = value.wrapping_add(1);
+        Timer::after(Duration::from_millis(CHANNEL_TASK_DELAY_MS)).await;
+        CHANNEL_1_TO_2.send(new_value).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn channel_task_2() {
+    loop {
+        let value = CHANNEL_1_TO_2.receive().await;
+        let new_value = value.wrapping_add(1);
+        Timer::after(Duration::from_millis(CHANNEL_TASK_DELAY_MS)).await;
+        CHANNEL_2_TO_3.send(new_value).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn channel_task_3() {
+    loop {
+        let value = CHANNEL_2_TO_3.receive().await;
+        let new_value = value.wrapping_add(1);
+        Timer::after(Duration::from_millis(CHANNEL_TASK_DELAY_MS)).await;
+        CHANNEL_3_TO_4.send(new_value).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn channel_task_4() {
+    loop {
+        let value = CHANNEL_3_TO_4.receive().await;
+        let new_value = value.wrapping_add(1);
+        Timer::after(Duration::from_millis(CHANNEL_TASK_DELAY_MS)).await;
+        CHANNEL_4_TO_0.send(new_value).await;
+    }
+}
+
 async fn ping_pong<'a>(
     mut pio1_common: PioCommon<'a>,
     sm0: SmTx<'a>,
@@ -289,7 +364,7 @@ async fn ping_pong<'a>(
     let mut hw = Hw::new(tx_sm, rx_sm, pio_pin);
     hw.enter_rx().await;
 
-    let mut ticker = Ticker::every(Duration::from_millis(50));
+    let mut ticker = Ticker::every(Duration::from_millis(5)); // 5ms = 200 messages/sec, much faster stress test
     let mut idx = 0;
     let mut state = false;
     status_led.set_high();
@@ -304,13 +379,10 @@ async fn ping_pong<'a>(
                     idx = (idx + 1) % TEST_DATA.len();
                     num += 1;
                     let x = TEST_DATA[idx];
-                    defmt::info!(
-                        "[{}/{}] sending: 0x{:08x} (pattern: 0b{:032b})",
-                        errors,
-                        num,
-                        x,
-                        x
-                    );
+                    // Only log every 100th message to reduce overhead
+                    if num % 100 == 0 {
+                        defmt::info!("[{}/{}] sending: 0x{:08x}", errors, num, x);
+                    }
                     hw.send(x).await;
                 }
             }
@@ -326,8 +398,7 @@ async fn ping_pong<'a>(
                         state = !state;
 
                         if !is_right {
-                            // Left side: echo back the received byte
-                            defmt::info!("[LEFT] received: 0x{:08x}, echoing back", x);
+                            // Left side: echo back the received byte (silent, no logging)
                             hw.send(x).await;
                         } else {
                             // Right side: verify the echoed byte
@@ -345,9 +416,8 @@ async fn ping_pong<'a>(
                                 // Show bit differences
                                 let diff = x ^ TEST_DATA[idx];
                                 defmt::error!("       Bit diff: 0b{:032b}", diff);
-                            } else {
-                                defmt::info!("[RIGHT] verified: 0x{:08x} ✓", x);
                             }
+                            // Success is silent - only errors are logged
 
                             // Report error rate every 100 messages
                             if num > 0 && num % 100 == 0 && num != last_error_report {
@@ -364,11 +434,7 @@ async fn ping_pong<'a>(
                         }
                     }
                     ReceivedOrTick::Tick => {
-                        if is_right {
-                            defmt::info!("[TICK] Messages sent: {}, Errors: {}", num, errors);
-                        } else {
-                            defmt::info!("[TICK] Left side waiting...");
-                        }
+                        // Tick events are silent
                     }
                 }
             }
@@ -377,11 +443,22 @@ async fn ping_pong<'a>(
 }
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
     defmt::info!("Hello there!");
 
     let p = embassy_rp::init(Default::default());
     let pio1 = Pio::new(p.PIO1, PioIrq1);
+
+    // Spawn the 5 channel tasks
+    spawner.spawn(channel_task_0()).unwrap();
+    spawner.spawn(channel_task_1()).unwrap();
+    spawner.spawn(channel_task_2()).unwrap();
+    spawner.spawn(channel_task_3()).unwrap();
+    spawner.spawn(channel_task_4()).unwrap();
+    defmt::info!("Spawned 5 channel tasks in ring topology");
+
+    let sys_freq = clocks::clk_sys_freq() as u64;
+    defmt::info!("System clock frequency: {} Hz", sys_freq);
 
     let mut status_led = Output::new(p.PIN_17, Level::Low);
     let is_right = Input::new(p.PIN_29, Pull::Up).is_high();
