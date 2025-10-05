@@ -24,7 +24,7 @@ use utils::serde::Event;
 use {defmt_rtt as _, panic_probe as _};
 
 /// Number of events in the channel from keys
-const NB_EVENTS: usize = 8;
+const NB_EVENTS: usize = 128;
 /// Channel to send `keyberon::layout::event` events to the layout handler
 pub static RGB_CHANNEL: Channel<ThreadModeRawMutex, KbEvent, NB_EVENTS> = Channel::new();
 

@@ -12,7 +12,7 @@ pub struct MouseMove {
 }
 
 /// Maximum number of movements in the channel
-pub const NB_MOVE: usize = 8;
+pub const NB_MOVE: usize = 128;
 /// Channel to send movement reports from the sensor
 pub static MOUSE_MOVE_CHANNEL: Channel<ThreadModeRawMutex, MouseMove, NB_MOVE> = Channel::new();
 

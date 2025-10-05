@@ -11,7 +11,7 @@ use embassy_usb::class::hid::{ReportId, RequestHandler};
 use embassy_usb::control::OutResponse;
 
 /// Only one report is sent at a time
-const NB_REPORTS: usize = 16;
+const NB_REPORTS: usize = 128;
 /// Channel to send HID keyboard reports to the HID writer
 pub static HID_KB_CHANNEL: Channel<ThreadModeRawMutex, KeyboardReport, NB_REPORTS> = Channel::new();
 

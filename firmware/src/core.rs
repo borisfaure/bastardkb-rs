@@ -31,7 +31,7 @@ use crate::keymap_test::{KBLayout, LAYERS};
 /// Layout refresh rate, in ms
 const REFRESH_RATE_MS: u64 = 1;
 /// Number of events in the layout channel
-const NB_EVENTS: usize = 8;
+const NB_EVENTS: usize = 128;
 /// Channel to send `keyberon::layout::event` events to the layout handler
 pub static LAYOUT_CHANNEL: Channel<ThreadModeRawMutex, KBEvent, NB_EVENTS> = Channel::new();
 
