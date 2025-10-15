@@ -297,7 +297,7 @@ impl RgbAnim {
             RgbAnimType::SolidColor(idx) => self.fill_color(RGB8::indexed(idx)),
             RgbAnimType::Wheel => self.tick_wheel(),
             RgbAnimType::Pulse => {
-                if self.frame % 128 == 0 {
+                if self.frame.is_multiple_of(128) {
                     self.color = self.new_random_color();
                 }
                 self.tick_pulse()
