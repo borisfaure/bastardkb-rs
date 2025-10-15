@@ -17,7 +17,7 @@ EXAMPLES=(
     [2]="encoder"
     [3]="pio_comms"
     [4]="pio_ping"
-    [5]="pio_ping_pong"
+    [5]="pio_compound"
     [6]="protocol"
     [7]="rgb_leds"
 )
