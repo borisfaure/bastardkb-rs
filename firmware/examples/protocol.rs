@@ -77,9 +77,8 @@ impl Hardware for Hw {
         HW_TX_QUEUE.send(msg).await;
     }
 
-    async fn try_receive(&mut self) -> Option<u32> {
-        // Try to receive from the hardware RX queue (non-blocking)
-        HW_RX_QUEUE.try_receive().ok()
+    async fn receive(&mut self) -> u32 {
+        HW_RX_QUEUE.receive().await
     }
 
     // Set error state
@@ -146,7 +145,7 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
         is_master: bool,
     ) -> Self {
         Self {
-            protocol: SideProtocol::new(hw, name, is_master),
+            protocol: SideProtocol::new(hw, name),
             status_led,
             is_right: is_master,
             ping_count: 0,
