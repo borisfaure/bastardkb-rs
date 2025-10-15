@@ -63,10 +63,6 @@ pub enum CustomEvent {
     WheelDown,
 }
 
-/// Debug tick counter: every 5s
-#[cfg(feature = "debug_tick")]
-const TICK_DEBUG: usize = 5000;
-
 /// Core keyboard/mouse handler
 pub struct Core<'a> {
     /// Keyboard layout
@@ -79,9 +75,6 @@ pub struct Core<'a> {
     mouse: MouseHandler,
     /// HID mouse writer
     hid_mouse_writer: HidWriter<'a, Driver<'a, USB>, 7>,
-    /// Debug tick counter
-    #[cfg(feature = "debug_tick")]
-    debug_tick: usize,
 }
 
 impl<'a> Core<'a> {
@@ -93,8 +86,6 @@ impl<'a> Core<'a> {
             kb_report: KeyboardReport::default(),
             mouse: MouseHandler::new(),
             hid_mouse_writer,
-            #[cfg(feature = "debug_tick")]
-            debug_tick: TICK_DEBUG,
         }
     }
 
@@ -118,17 +109,6 @@ impl<'a> Core<'a> {
 
     /// Process the state of the keyboard and mouse
     async fn tick(&mut self) {
-        #[cfg(feature = "debug_tick")]
-        {
-            self.debug_tick -= 1;
-            if self.debug_tick == 0 {
-                defmt::info!(
-                    "Tick every {}s",
-                    TICK_DEBUG / 1000 / REFRESH_RATE_MS as usize
-                );
-                self.debug_tick = TICK_DEBUG;
-            }
-        }
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
             let raw = mouse_report.serialize();
