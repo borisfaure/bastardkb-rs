@@ -110,10 +110,7 @@ async fn hardware_task(mut sm: SmCompound<'static>) {
         }
 
         // ALWAYS send something to maintain 1ms timing
-        let msg_to_send = match HW_TX_QUEUE.try_receive() {
-            Ok(msg) => msg,       // Send queued message from protocol layer
-            Err(_) => 0x00000000, // Send keepalive (no message to send)
-        };
+        let msg_to_send = HW_TX_QUEUE.try_receive().unwrap_or_default();
 
         // Send via PIO (compound state machine handles TX automatically)
         sm.tx().wait_push(msg_to_send).await;
