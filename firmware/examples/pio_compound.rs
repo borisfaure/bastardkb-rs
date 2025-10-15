@@ -10,8 +10,8 @@ use embassy_rp::{
     gpio::{Level, Output, Pull},
     peripherals::PIO1,
     pio::{
-        self, program::pio_asm, Common, Direction,
-        InterruptHandler as PioInterruptHandler, Pio, ShiftDirection, StateMachine,
+        self, program::pio_asm, Common, Direction, InterruptHandler as PioInterruptHandler, Pio,
+        ShiftDirection, StateMachine,
     },
 };
 use embassy_time::{Duration, Instant, Ticker};

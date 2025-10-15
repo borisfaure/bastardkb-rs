@@ -15,8 +15,8 @@ use embassy_rp::{
     gpio::{Input, Level, Output, Pull},
     peripherals::{PIN_1, PIO1},
     pio::{
-        self, program::pio_asm, Common, Direction,
-        InterruptHandler as PioInterruptHandler, Pio, ShiftDirection, StateMachine,
+        self, program::pio_asm, Common, Direction, InterruptHandler as PioInterruptHandler, Pio,
+        ShiftDirection, StateMachine,
     },
     Peri,
 };
@@ -357,9 +357,7 @@ async fn ping_pong(
     spawner.spawn(hardware_task(sm)).unwrap();
 
     let name = if is_right { "Right" } else { "Left" };
-    let hw = Hw {
-        on_error: false,
-    };
+    let hw = Hw { on_error: false };
     let mut sides_comms: SidesComms<'_, Hw> = SidesComms::new(name, hw, status_led, is_right);
     sides_comms.run().await;
 }
