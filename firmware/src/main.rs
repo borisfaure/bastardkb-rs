@@ -195,7 +195,6 @@ async fn main(spawner: Spawner) {
         &spawner,
         pio1.common,
         pio1.sm0,
-        pio1.sm1,
         p.PIN_1,
         status_led,
         is_right,
@@ -259,4 +258,5 @@ async fn main(spawner: Spawner) {
 
     defmt::info!("let's go!");
     hid_kb_reader_fut.await;
+    defmt::info!("end of main()");
 }

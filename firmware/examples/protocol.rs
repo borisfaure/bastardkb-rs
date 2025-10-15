@@ -10,16 +10,12 @@
 #![no_main]
 
 use embassy_executor::Spawner;
-use embassy_futures::{
-    select::{select, Either},
-    yield_now,
-};
 use embassy_rp::{
     bind_interrupts, clocks,
-    gpio::{Drive, Input, Level, Output, Pull},
+    gpio::{Input, Level, Output, Pull},
     peripherals::{PIN_1, PIO1},
     pio::{
-        self, program::pio_asm, Common, Direction, FifoJoin,
+        self, program::pio_asm, Common, Direction,
         InterruptHandler as PioInterruptHandler, Pio, ShiftDirection, StateMachine,
     },
     Peri,
@@ -28,7 +24,7 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
 use futures::future;
-use utils::protocol::{Hardware, ReceivedOrTick, SideProtocol};
+use utils::protocol::{Hardware, SideProtocol};
 use utils::serde::Event;
 
 use {defmt_rtt as _, panic_probe as _};
@@ -42,11 +38,14 @@ const NB_EVENTS: usize = 8;
 /// Channel to send `utils::serde::event` events to the layout handler
 pub static SIDE_CHANNEL: Channel<ThreadModeRawMutex, Event, NB_EVENTS> = Channel::new();
 
-const TX: usize = 0;
-const RX: usize = 1;
+/// Hardware queue size for TX/RX messages
+const HW_QUEUE_SIZE: usize = 16;
+/// Hardware TX queue: protocol layer queues messages here to be sent by hardware task
+static HW_TX_QUEUE: Channel<ThreadModeRawMutex, u32, HW_QUEUE_SIZE> = Channel::new();
+/// Hardware RX queue: hardware task places received messages here for protocol layer
+static HW_RX_QUEUE: Channel<ThreadModeRawMutex, u32, HW_QUEUE_SIZE> = Channel::new();
 
-type SmRx<'a> = StateMachine<'a, PIO1, { RX }>;
-type SmTx<'a> = StateMachine<'a, PIO1, { TX }>;
+type SmCompound<'a> = StateMachine<'a, PIO1, 0>;
 type PioCommon<'a> = Common<'a, PIO1>;
 type PioPin<'a> = pio::Pin<'a, PIO1>;
 
@@ -57,111 +56,30 @@ struct SidesComms<'a, W: Sized + Hardware> {
     protocol: SideProtocol<W>,
     /// Status LED
     status_led: &'a mut Output<'static>,
+    /// Is this the right side (master)?
+    is_right: bool,
+    /// Counter for received events
+    ping_count: u32,
+    press_count: u32,
+    release_count: u32,
+    /// Last stats print time
+    last_stats: embassy_time::Instant,
 }
 
-struct Hw<'a> {
-    /// State machine to send events
-    tx_sm: SmTx<'a>,
-    /// State machine to receive events
-    rx_sm: SmRx<'a>,
-    /// Pin used for communication
-    pin: PioPin<'a>,
+struct Hw {
     // error state
     on_error: bool,
-    // 1s ticker
-    ticker: Ticker,
 }
 
-impl<'a> Hw<'a> {
-    pub fn new(tx_sm: SmTx<'a>, rx_sm: SmRx<'a>, pin: PioPin<'a>) -> Self {
-        Self {
-            tx_sm,
-            rx_sm,
-            pin,
-            on_error: false,
-            ticker: Ticker::every(Duration::from_secs(1)),
-        }
+impl Hardware for Hw {
+    async fn queue_send(&mut self, msg: u32) {
+        // Queue the message to be sent by the hardware task
+        HW_TX_QUEUE.send(msg).await;
     }
 
-    async fn enter_rx(&mut self) {
-        // Wait for TX FIFO to empty
-        while !self.tx_sm.tx().empty() {
-            yield_now().await;
-        }
-
-        // Calculate delay needed: time for ~34 bits at current speed
-        // 32 data bits + start bit + stop bit = ~34 bits
-        // At 460800 bps: 34 bits = ~74 microseconds
-        // Convert to CPU cycles at 125MHz: 74us * 125 = 9250 cycles
-        // Add extra time for the other side to switch from RX to TX
-        let sys_freq = clocks::clk_sys_freq() as u64;
-        let bit_time_cycles = (sys_freq * 50) / SPEED; // Increased from 34 to 50 bits worth of time
-        cortex_m::asm::delay(bit_time_cycles as u32);
-
-        // Disable TX state machine before manipulating TX pin
-        self.tx_sm.set_enable(false);
-
-        // Set minimal drive strength on TX pin to avoid interfering with RX
-        self.pin.set_drive_strength(Drive::_2mA);
-
-        // Set pin as input
-        self.rx_sm.set_pin_dirs(Direction::In, &[&self.pin]);
-        self.tx_sm.set_pin_dirs(Direction::In, &[&self.pin]);
-
-        // Clear RX FIFO before restarting
-        while !self.rx_sm.rx().empty() {
-            let _ = self.rx_sm.rx().try_pull();
-        }
-
-        // Restart RX state machine to prepare for reception
-        self.rx_sm.restart();
-        // Enable RX state machine
-        // This allows it to start receiving data from the line
-        // while benefiting from the pull-up drive
-        self.rx_sm.set_enable(true);
-    }
-
-    fn enter_tx(&mut self) {
-        // Disable RX state machine to prevent receiving transmitted data
-        self.rx_sm.set_enable(false);
-
-        // Increase drive strength for better signal integrity
-        self.pin.set_drive_strength(Drive::_12mA);
-
-        // Set TX pin as output (to drive the line)
-        self.tx_sm.set_pin_dirs(Direction::Out, &[&self.pin]);
-        self.rx_sm.set_pin_dirs(Direction::Out, &[&self.pin]);
-
-        // Set pin High
-        self.tx_sm.set_pins(Level::High, &[&self.pin]);
-        self.rx_sm.set_pins(Level::High, &[&self.pin]);
-
-        // Restart TX state machine to prepare for transmission
-        self.tx_sm.restart();
-
-        // Enable TX state machine
-        self.tx_sm.set_enable(true);
-    }
-}
-
-impl Hardware for Hw<'_> {
-    async fn send(&mut self, msg: u32) {
-        self.enter_tx();
-        self.tx_sm.tx().wait_push(msg).await;
-        self.enter_rx().await;
-    }
-
-    async fn receive(&mut self) -> ReceivedOrTick {
-        match select(self.rx_sm.rx().wait_pull(), self.ticker.next()).await {
-            Either::First(x) => {
-                self.ticker.reset();
-                ReceivedOrTick::Some(x)
-            }
-            Either::Second(_) => {
-                self.ticker.reset();
-                ReceivedOrTick::Tick
-            }
-        }
+    async fn try_receive(&mut self) -> Option<u32> {
+        // Try to receive from the hardware RX queue (non-blocking)
+        HW_RX_QUEUE.try_receive().ok()
     }
 
     // Set error state
@@ -175,9 +93,48 @@ impl Hardware for Hw<'_> {
     }
 }
 
-/// Process an event
-fn process_event(event: Event) {
-    defmt::info!("Process event: {:?}", event);
+/// Hardware task that maintains continuous 1ms communication
+/// This runs independently of the protocol layer
+#[embassy_executor::task]
+async fn hardware_task(mut sm: SmCompound<'static>) {
+    let mut ticker = Ticker::every(Duration::from_millis(1));
+    let mut loop_count: u32 = 0;
+
+    loop {
+        ticker.next().await;
+        loop_count += 1;
+
+        // Print heartbeat every 5000ms
+        if loop_count % 5000 == 0 {
+            defmt::println!("HW task heartbeat: {} iterations", loop_count);
+        }
+
+        // ALWAYS send something to maintain 1ms timing
+        let msg_to_send = match HW_TX_QUEUE.try_receive() {
+            Ok(msg) => {
+                // Send queued message from protocol layer
+                msg
+            }
+            Err(_) => {
+                // No message queued, send keepalive (0x00000000)
+                0x00000000
+            }
+        };
+
+        // Send via PIO
+        sm.tx().wait_push(msg_to_send).await;
+
+        // Check if we received anything (non-blocking)
+        if sm.rx().level() > 0 {
+            let received_msg = sm.rx().wait_pull().await;
+            // Filter out keepalive messages (0x00000000)
+            if received_msg != 0x00000000 {
+                // Queue it for the protocol layer (non-blocking)
+                // If queue is full, drop the message (should not happen with proper sizing)
+                let _ = HW_RX_QUEUE.try_send(received_msg);
+            }
+        }
+    }
 }
 
 impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
@@ -191,115 +148,180 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
         Self {
             protocol: SideProtocol::new(hw, name, is_master),
             status_led,
+            is_right: is_master,
+            ping_count: 0,
+            press_count: 0,
+            release_count: 0,
+            last_stats: embassy_time::Instant::now(),
         }
     }
 
-    /// Run the communication between the two sides
-    pub async fn run(&mut self) {
-        // Wait for the other side to boot
-        loop {
-            //match select(SIDE_CHANNEL.receive(), self.protocol.hw.receive()).await {
-            match select(SIDE_CHANNEL.receive(), self.protocol.receive()).await {
-                Either::First(event) => {
-                    self.protocol.queue_event(event).await;
-                }
-                Either::Second(x) => {
-                    self.status_led.set_low();
-                    process_event(x);
-                    self.status_led.set_high();
+    /// Process received event and update counters
+    fn process_event(&mut self, event: Event) {
+        match event {
+            Event::Ping => {
+                self.ping_count += 1;
+                if !self.is_right {
+                    defmt::println!("Received Ping #{}", self.ping_count);
                 }
             }
+            Event::Press(_, _) => {
+                self.press_count += 1;
+            }
+            Event::Release(_, _) => {
+                self.release_count += 1;
+            }
+            _ => {}
+        }
+    }
+
+    /// Print stats every 3 seconds
+    fn maybe_print_stats(&mut self) {
+        let now = embassy_time::Instant::now();
+        if (now - self.last_stats).as_secs() >= 3 {
+            if self.is_right {
+                defmt::println!(
+                    "Right side stats: Press={}, Release={}",
+                    self.press_count,
+                    self.release_count
+                );
+            }
+            self.last_stats = now;
+        }
+    }
+
+    /// Run the communication between the two sides in continuous mode (1ms cycle)
+    pub async fn run(&mut self) {
+        defmt::println!("Starting communication loop");
+        let mut ticker = Ticker::every(Duration::from_millis(1));
+        let mut loop_count: u32 = 0;
+        loop {
+            // Wait for next 1ms tick
+            ticker.next().await;
+            loop_count += 1;
+
+            // Print heartbeat every 1000ms
+            if loop_count % 1000 == 0 {
+                defmt::println!("Heartbeat: {} iterations", loop_count);
+            }
+
+            // Queue any pending events from the channel (non-blocking)
+            while let Ok(event) = SIDE_CHANNEL.try_receive() {
+                self.protocol.queue_event(event).await;
+            }
+
+            // Run one protocol cycle (always sends, checks for received)
+            if let Some(event) = self.protocol.run_once_continuous().await {
+                self.status_led.set_low();
+                self.process_event(event);
+                self.status_led.set_high();
+            }
+
+            // Print stats periodically
+            self.maybe_print_stats();
         }
     }
 }
 
 fn pio_freq() -> fixed::FixedU32<fixed::types::extra::U8> {
-    (U56F8::from_num(clocks::clk_sys_freq()) / (8 * SPEED)).to_fixed()
+    (clocks::clk_sys_freq() as u64 / (8 * SPEED))
+        .to_fixed::<U56F8>()
+        .to_fixed()
 }
 
-/// Task to send data
-fn task_tx<'a>(common: &mut PioCommon<'a>, mut sm: SmTx<'a>, pin: &mut PioPin<'a>) -> SmTx<'a> {
+/// Master: Transmit first, then receive
+fn setup_master_compound(
+    common: &mut PioCommon<'static>,
+    mut sm: SmCompound<'static>,
+    pin: &mut PioPin<'static>,
+) -> SmCompound<'static> {
     sm.set_pins(Level::High, &[pin]);
     sm.set_pin_dirs(Direction::Out, &[pin]);
     pin.set_slew_rate(embassy_rp::gpio::SlewRate::Fast);
     pin.set_schmitt(true);
 
-    let tx_prog = pio_asm!(
+    let prog = pio_asm!(
         ".wrap_target",
-        ".side_set 1 opt",
-        // Pull the data to send and keep line high
-        "pull  block  side 1 [3]",
-        // Set the counter to 31 bits and set line low to start sending
-        "set   x, 31  side 0 [3]",
-        "bitloop:"
-        // Output a bit at a time, starting from the LSB
-        "out   pins, 1",
-        // Loop until all bits are sent and wait 2 cycles
-        "jmp   x--, bitloop [2]",
-        // After transmission, delay to give receiver time to process and respond
-        // This matches the firmware's PIO delay for realistic testing
-        "set   y, 7  side 1",    // Set line high (idle) and outer loop counter
-        "outer_loop:",
-        "set   x, 31",           // Inner loop counter (32 iterations)
-        "inner_loop:",
-        "nop [7]",               // Wait 8 PIO cycles
-        "nop [7]",               // Another 8 cycles
-        "nop [7]",               // Another 8 cycles
-        "nop [7]",               // Another 8 cycles (total 33 per inner loop)
-        "jmp   x--, inner_loop", // Loop 32 times per outer iteration
-        "jmp   y--, outer_loop", // Outer loop 8 times: 8*32*33 = 8448 cycles ≈ 540us
+        // === TX Phase ===
+        "pull block",      // Get data to transmit
+        "set pindirs, 1",  // Pin as output
+        "set pins, 1 [3]", // Idle high
+        "set x, 31",       // Counter for 32 bits
+        "set pins, 0 [3]", // Start bit low
+        "tx_loop:",
+        "out pins, 1",          // Output data bit
+        "jmp x--, tx_loop [2]", // Loop (4 cycles per bit)
+        "set pins, 1 [7]",      // Return to idle, delay for slave
+        // === Switch to RX ===
+        "set pindirs, 0", // Pin as input
+        // === RX Phase ===
+        "wait 0 pin, 0", // Wait for slave's start bit
+        "nop [2]",       // Align to middle of first bit
+        "set x, 31",     // Counter for 32 bits
+        "rx_loop:",
+        "in pins, 1",           // Sample bit
+        "jmp x--, rx_loop [2]", // Loop (4 cycles per bit)
+        "push block",           // Push received data
+        "wait 1 pin, 0",        // Wait for idle
         ".wrap"
     );
-    let mut cfg = embassy_rp::pio::Config::default();
 
-    cfg.use_program(&common.load_program(&tx_prog.program), &[pin]);
+    let mut cfg = embassy_rp::pio::Config::default();
+    cfg.use_program(&common.load_program(&prog.program), &[]);
     cfg.set_set_pins(&[pin]);
     cfg.set_out_pins(&[pin]);
+    cfg.set_in_pins(&[pin]);
     cfg.clock_divider = pio_freq();
-    cfg.shift_in.auto_fill = false;
-    cfg.shift_in.direction = ShiftDirection::Right;
-    cfg.shift_in.threshold = 32;
     cfg.shift_out.auto_fill = false;
     cfg.shift_out.direction = ShiftDirection::Right;
     cfg.shift_out.threshold = 32;
-    cfg.fifo_join = FifoJoin::TxOnly;
     cfg.shift_in.auto_fill = false;
+    cfg.shift_in.direction = ShiftDirection::Right;
+    cfg.shift_in.threshold = 32;
+    // Don't join FIFOs - need both TX and RX
     sm.set_config(&cfg);
 
     sm.set_enable(true);
     sm
 }
 
-/// Task to receive data
-fn task_rx<'a>(common: &mut PioCommon<'a>, mut sm: SmRx<'a>, pin: &PioPin<'a>) -> SmRx<'a> {
-    let rx_prog = pio_asm!(
+/// Slave: Receive first, then transmit
+fn setup_slave_compound(
+    common: &mut PioCommon<'static>,
+    mut sm: SmCompound<'static>,
+    pin: &PioPin<'static>,
+) -> SmCompound<'static> {
+    let prog = pio_asm!(
         ".wrap_target",
-        "start:",
-        // Wait for the line to go low to start receiving (start bit detected)
-        "wait  0 pin, 0",
-        // TX timing: each bit is 4 PIO cycles
-        //   Start bit: "set x, 31 side 0 [3]" = 4 cycles
-        //   Data bits: "out pins, 1" + "jmp x--, bitloop [2]" = 1+1+2 = 4 cycles
-        // After wait completes, we're ~1 cycle into start bit
-        // Need to wait 3 more cycles of start bit + 2 cycles to middle of first data bit = 5 total
-        // But we get 2 from "set x, 31 [1]", so wait 3 more with nop
-        "nop [2]",     // Wait 3 cycles
-        "set   x, 31", // Wait 1 cycle, then start sampling
-        "bitloop:",
-        // Sample the bit in middle
-        "in    pins, 1",
-        // Wait 2 more cycles, then loop (total 4 cycles per bit: in[1] + jmp[1] + delay[2])
-        "jmp   x--, bitloop [2]",
-        // Push the received data to the FIFO
-        "push block",
-        // Wait for the line to go high before next transmission
-        "wait  1 pin, 0",
+        // === RX Phase (slave receives first) ===
+        "set pindirs, 0", // Pin as input
+        "wait 0 pin, 0",  // Wait for master's start bit
+        "nop [2]",        // Align to middle of first bit
+        "set x, 31",      // Counter for 32 bits
+        "rx_loop:",
+        "in pins, 1",           // Sample bit
+        "jmp x--, rx_loop [2]", // Loop (4 cycles per bit)
+        "push block",           // Push received data
+        "wait 1 pin, 0",        // Wait for idle
+        // === Switch to TX ===
+        "pull block",     // Get response data (wait for CPU to provide it)
+        "set pindirs, 1", // Pin as output
+        // === TX Phase ===
+        "set pins, 1 [3]", // Idle high
+        "set x, 31",       // Counter for 32 bits
+        "set pins, 0 [3]", // Start bit low
+        "tx_loop:",
+        "out pins, 1",          // Output data bit
+        "jmp x--, tx_loop [2]", // Loop (4 cycles per bit)
+        "set pins, 1 [7]",      // Return to idle with delay
         ".wrap"
     );
+
     let mut cfg = embassy_rp::pio::Config::default();
-    cfg.use_program(&common.load_program(&rx_prog.program), &[]);
+    cfg.use_program(&common.load_program(&prog.program), &[]);
+    cfg.set_set_pins(&[pin]);
+    cfg.set_out_pins(&[pin]);
     cfg.set_in_pins(&[pin]);
-    cfg.set_jmp_pin(pin);
     cfg.clock_divider = pio_freq();
     cfg.shift_out.auto_fill = false;
     cfg.shift_out.direction = ShiftDirection::Right;
@@ -307,30 +329,38 @@ fn task_rx<'a>(common: &mut PioCommon<'a>, mut sm: SmRx<'a>, pin: &PioPin<'a>) -
     cfg.shift_in.auto_fill = false;
     cfg.shift_in.direction = ShiftDirection::Right;
     cfg.shift_in.threshold = 32;
-    cfg.fifo_join = FifoJoin::RxOnly;
+    // Don't join FIFOs - need both TX and RX
     sm.set_config(&cfg);
 
     sm.set_enable(true);
     sm
 }
 
-async fn ping_pong<'a>(
-    mut pio1_common: PioCommon<'a>,
-    sm0: SmTx<'a>,
-    sm1: SmRx<'a>,
+async fn ping_pong(
+    spawner: Spawner,
+    mut pio1_common: PioCommon<'static>,
+    sm0: SmCompound<'static>,
     gpio_pin1: Peri<'static, PIN_1>,
     status_led: &mut Output<'static>,
     is_right: bool,
 ) {
     let mut pio_pin = pio1_common.make_pio_pin(gpio_pin1);
     pio_pin.set_pull(Pull::Up);
-    let tx_sm = task_tx(&mut pio1_common, sm0, &mut pio_pin);
-    let rx_sm = task_rx(&mut pio1_common, sm1, &pio_pin);
+
+    let sm = if is_right {
+        setup_master_compound(&mut pio1_common, sm0, &mut pio_pin)
+    } else {
+        setup_slave_compound(&mut pio1_common, sm0, &pio_pin)
+    };
+
+    // Spawn the hardware task that maintains 1ms timing
+    spawner.spawn(hardware_task(sm)).unwrap();
 
     let name = if is_right { "Right" } else { "Left" };
-    let mut hw = Hw::new(tx_sm, rx_sm, pio_pin);
-    hw.enter_rx().await;
-    let mut sides_comms: SidesComms<'_, Hw<'_>> = SidesComms::new(name, hw, status_led, is_right);
+    let hw = Hw {
+        on_error: false,
+    };
+    let mut sides_comms: SidesComms<'_, Hw> = SidesComms::new(name, hw, status_led, is_right);
     sides_comms.run().await;
 }
 
@@ -359,18 +389,25 @@ async fn sender(is_right: bool) {
 }
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
-    defmt::info!("Hello there!");
+async fn main(spawner: Spawner) {
+    defmt::println!("=== Protocol Example Starting ===");
 
     let p = embassy_rp::init(Default::default());
     let pio1 = Pio::new(p.PIO1, PioIrq1);
 
     let mut status_led = Output::new(p.PIN_17, Level::Low);
     let is_right = Input::new(p.PIN_29, Pull::Up).is_high();
+
+    if is_right {
+        defmt::println!("=== RIGHT SIDE (Master) ===");
+    } else {
+        defmt::println!("=== LEFT SIDE (Slave) ===");
+    }
+
     let pp_fut = ping_pong(
+        spawner,
         pio1.common,
         pio1.sm0,
-        pio1.sm1,
         p.PIN_1,
         &mut status_led,
         is_right,

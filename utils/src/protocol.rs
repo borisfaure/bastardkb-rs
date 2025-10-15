@@ -26,19 +26,17 @@ use crate::sid::{CircBuf, Sid};
 use arraydeque::ArrayDeque;
 use core::future;
 
-/// Received or tick
-#[allow(dead_code)]
-pub enum ReceivedOrTick {
-    Some(Message),
-    Tick,
-}
-
-/// Hardware trait
+/// Hardware trait for continuous communication mode
+///
+/// The hardware layer maintains continuous 1ms communication independently.
+/// The protocol layer queues messages to send and checks for received messages.
 pub trait Hardware {
-    /// Send a message
-    fn send(&mut self, msg: Message) -> impl future::Future<Output = ()> + Send;
-    /// Receive a message
-    fn receive(&mut self) -> impl future::Future<Output = ReceivedOrTick> + Send;
+    /// Queue a message to be sent (non-blocking)
+    /// The hardware layer will send it on the next 1ms cycle
+    fn queue_send(&mut self, msg: Message) -> impl future::Future<Output = ()> + Send;
+
+    /// Receive a message from the RX queue
+    fn receive(&mut self) -> impl future::Future<Output = Message> + Send;
 
     /// Set error state
     fn set_error_state(&mut self, error: bool) -> impl future::Future<Output = ()> + Send;
@@ -63,9 +61,6 @@ pub struct SideProtocol<W: Sized + Hardware> {
     /// Next sequence id to send
     next_tx_sid: Sid,
 
-    /// Is master
-    is_master: bool,
-
     /// Need to send a ping
     need_ping: bool,
 
@@ -81,7 +76,7 @@ pub struct SideProtocol<W: Sized + Hardware> {
 
 impl<W: Sized + Hardware> SideProtocol<W> {
     /// Create a new side protocol
-    pub fn new(hw: W, name: &'static str, is_master: bool) -> Self {
+    pub fn new(hw: W, name: &'static str) -> Self {
         Self {
             name,
             sent: CircBuf::new(),
@@ -89,7 +84,6 @@ impl<W: Sized + Hardware> SideProtocol<W> {
             next_rx_sid: None,
             next_tx_sid: Sid::default(),
             hw,
-            is_master,
             retransmit_on_going: false,
             need_ping: true,
             last_msg: None,
@@ -108,7 +102,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
             Debug2Format(&event),
             msg
         );
-        self.hw.send(msg).await;
+        self.hw.queue_send(msg).await;
         // Don't store the message if it's a retransmit
         if !event.is_retransmit() && !event.is_noop() {
             self.sent.insert(self.next_tx_sid, msg);
@@ -262,39 +256,53 @@ impl<W: Sized + Hardware> SideProtocol<W> {
         to_process
     }
 
-    pub async fn run_once(&mut self) -> Option<Event> {
-        let msg = self.hw.receive().await;
-        match msg {
-            ReceivedOrTick::Tick => {
-                if self.is_master && self.need_ping {
-                    #[cfg(feature = "log-protocol")]
-                    info!("[{}] Sending Ping", self.name);
-                    self.send_event(Event::Ping).await;
-                }
-                self.need_ping = true;
+    /// Run one iteration in continuous mode
+    /// Returns event to process if received
+    ///
+    /// NOTE: The hardware layer maintains 1ms timing independently.
+    /// This method just queues messages and checks for received data.
+    pub async fn run_once_continuous(&mut self) -> Option<Event> {
+        // Send queued events if any
+        // The hardware layer will send keepalives automatically when queue is empty
+        if !self.queued_events.is_empty() {
+            if let Some(event) = self.queued_events.pop_back() {
+                self.send_event(event).await;
             }
-            ReceivedOrTick::Some(msg) => match deserialize(msg) {
-                Ok((event, sid)) => {
-                    #[cfg(feature = "log-protocol")]
-                    if let Some(next) = self.next_rx_sid {
-                        info!(
-                            "[{}] Received with sid#{} (Expecting #{}) Event: {}",
-                            self.name,
-                            sid,
-                            next,
-                            Debug2Format(&event)
-                        );
-                    } else {
-                        info!(
-                            "[{}] Received [{}] Event: {}",
-                            self.name,
-                            sid,
-                            Debug2Format(&event)
-                        );
-                    }
-                    if let Event::Retransmit(to_retransmit) = event {
-                        self.on_retransmit(to_retransmit).await;
-                    } else if let Some(event_to_return) = match (self.next_rx_sid, sid) {
+        }
+
+        // Check if we received a message
+        let msg = self.hw.receive().await;
+
+        // Process received message
+        self.process_received_message(msg).await
+    }
+
+    /// Process a received message and return event if needed
+    async fn process_received_message(&mut self, msg: Message) -> Option<Event> {
+        match deserialize(msg) {
+            Ok((event, sid)) => {
+                #[cfg(feature = "log-protocol")]
+                if let Some(next) = self.next_rx_sid {
+                    info!(
+                        "[{}] Received with sid#{} (Expecting #{}) Event: {}",
+                        self.name,
+                        sid,
+                        next,
+                        Debug2Format(&event)
+                    );
+                } else {
+                    info!(
+                        "[{}] Received [{}] Event: {}",
+                        self.name,
+                        sid,
+                        Debug2Format(&event)
+                    );
+                }
+                if let Event::Retransmit(to_retransmit) = event {
+                    self.on_retransmit(to_retransmit).await;
+                    None
+                } else {
+                    match (self.next_rx_sid, sid) {
                         (Some(expected), got) if expected == got => {
                             let mut event_to_return = None;
                             #[cfg(feature = "log-protocol")]
@@ -309,12 +317,6 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                             let next = expected.next();
                             self.next_rx_sid = Some(next);
                             self.retransmit_on_going = false;
-                            if !self.is_on_error() && !self.queued_events.is_empty() {
-                                // If we're not in error mode, send one queued events
-                                if let Some(event) = self.queued_events.pop_back() {
-                                    self.send_event(event).await;
-                                }
-                            }
                             event_to_return
                         }
                         (None, _) => {
@@ -326,25 +328,25 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                             self.on_invalid_sid(msg, expected, event, sid).await;
                             None
                         }
-                    } {
-                        return Some(event_to_return);
-                    };
-                }
-                Err(_) => {
-                    warn!("[{}] Unable to deserialize event: 0x{:04x}", self.name, msg);
-                    if let Some(next) = self.next_rx_sid {
-                        self.send_retransmit(next).await;
                     }
                 }
-            },
+            }
+            Err(_) => {
+                warn!("[{}] Unable to deserialize event: 0x{:04x}", self.name, msg);
+                if let Some(next) = self.next_rx_sid {
+                    self.send_retransmit(next).await;
+                }
+                None
+            }
         }
-        None
     }
 
-    /// Receive a message
+    /// Receive a message (blocking, keeps trying until an event is received)
+    /// Processes all available messages using try_receive, then waits for more
     pub async fn receive(&mut self) -> Event {
+        // Process all currently available messages
         loop {
-            if let Some(event) = self.run_once().await {
+            if let Some(event) = self.run_once_continuous().await {
                 return event;
             }
         }
@@ -364,22 +366,21 @@ mod tests {
     struct MockHardware {
         msg_sent: usize,
         send_queue: ArrayDeque<Message, MAX_MSGS, arraydeque::behavior::Saturating>,
-        to_rx: mpsc::Sender<ReceivedOrTick>,
-        rx: mpsc::Receiver<ReceivedOrTick>,
+        to_rx: mpsc::Sender<Message>,
+        rx: mpsc::Receiver<Message>,
         on_error: bool,
         name: &'static str,
     }
     impl Hardware for MockHardware {
-        fn send(&mut self, msg: Message) -> impl future::Future<Output = ()> + Send {
+        fn queue_send(&mut self, msg: Message) -> impl future::Future<Output = ()> + Send {
             self.msg_sent += 1;
             self.send_queue.push_front(msg).unwrap();
             async {}
         }
-        async fn receive(&mut self) -> ReceivedOrTick {
-            loop {
-                if let Some(msg) = self.rx.recv().await {
-                    return msg;
-                }
+        async fn try_receive(&mut self) -> Option<Message> {
+            match self.rx.try_recv().ok() {
+                Some(msg) if msg == 0x00000000 => None, // Filter out keepalive
+                other => other,
             }
         }
         fn set_error_state(&mut self, error: bool) -> impl future::Future<Output = ()> + Send {
@@ -407,23 +408,20 @@ mod tests {
         right: &mut SideProtocol<MockHardware>,
         left: &mut SideProtocol<MockHardware>,
     ) {
+        // Transfer messages from left to right
         if let Some(msg) = left.hw.send_queue.pop_back() {
-            right
-                .hw
-                .to_rx
-                .send(ReceivedOrTick::Some(msg))
-                .await
-                .unwrap();
+            right.hw.to_rx.send(msg).await.unwrap();
         }
-        if !right.hw.rx.is_empty() {
-            right.run_once().await;
-        }
+        // Always run protocol cycle on right
+        right.run_once_continuous().await;
+
+        // Transfer messages from right to left
         if let Some(msg) = right.hw.send_queue.pop_back() {
-            left.hw.to_rx.send(ReceivedOrTick::Some(msg)).await.unwrap();
+            left.hw.to_rx.send(msg).await.unwrap();
         }
-        if !left.hw.rx.is_empty() {
-            left.run_once().await;
-        }
+        // Always run protocol cycle on left
+        left.run_once_continuous().await;
+
         info!(
             "QUEUES: right rx:{} send:{}/{} left rx:{} send:{}/{}",
             right.hw.rx.len(),
@@ -527,16 +525,11 @@ mod tests {
         // Send a message from right to left
         right.send_event(Event::Ping).await;
         let msg = right.hw.send_queue.pop_back().unwrap();
-        left.hw.to_rx.send(ReceivedOrTick::Some(msg)).await.unwrap();
-        left.run_once().await;
+        left.hw.to_rx.send(msg).await.unwrap();
+        left.run_once_continuous().await;
         let msg = left.hw.send_queue.pop_back().unwrap();
-        right
-            .hw
-            .to_rx
-            .send(ReceivedOrTick::Some(msg))
-            .await
-            .unwrap();
-        right.run_once().await;
+        right.hw.to_rx.send(msg).await.unwrap();
+        right.run_once_continuous().await;
         assert!(right.sent.is_empty());
     }
 
@@ -597,7 +590,7 @@ mod tests {
             right.hw.send_queue.push_front(bad[i]).unwrap();
         }
         // Let it commmunicate and stabilize
-        communicate(&mut right, &mut left, 10).await;
+        communicate(&mut right, &mut left, 30).await;
         assert!(is_synced(&right, &left));
     }
 
@@ -616,15 +609,12 @@ mod tests {
         right.next_tx_sid = Sid::new(2);
         left.next_rx_sid = None;
         left.next_tx_sid = Sid::new(0);
-        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
+        // In continuous mode, both sides always send Noop if nothing queued
         // Let it commmunicate and stabilize
-        communicate(&mut right, &mut left, 10).await;
+        communicate(&mut right, &mut left, 50).await;
         info!("Right: {:?}", right.hw.msg_sent);
         info!("Left: {:?}", right.hw.msg_sent);
         assert!(is_synced(&right, &left));
-        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
-        // Force a ping to be sent due to 2 consecutive ticks with no comm
-        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
         left.send_event(Event::Press(3, 3)).await;
         // Let it commmunicate and stabilize
         communicate(&mut right, &mut left, 10).await;
@@ -644,16 +634,11 @@ mod tests {
         right.next_tx_sid = Sid::new(12);
         left.next_rx_sid = Some(Sid::new(10));
         left.next_tx_sid = Sid::new(28);
-        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
         // Let it commmunicate and stabilize
         right.send_event(Event::SeedRng(0)).await;
         left.send_event(Event::Press(3, 3)).await;
-        communicate(&mut right, &mut left, 5).await;
+        communicate(&mut right, &mut left, 50).await;
         assert!(is_synced(&right, &left));
-
-        // Force a ping to be sent due to 2 consecutive ticks with no comm
-        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
-        right.hw.to_rx.send(ReceivedOrTick::Tick).await.unwrap();
 
         left.send_event(Event::Press(3, 3)).await;
         // Let it commmunicate and stabilize
