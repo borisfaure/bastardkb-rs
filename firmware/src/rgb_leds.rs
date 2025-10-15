@@ -12,8 +12,6 @@ use embassy_rp::{
     Peri,
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
-#[cfg(feature = "timing_logs")]
-use embassy_time::Instant;
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
@@ -121,112 +119,46 @@ pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS, AnyChannel>, is_
     // Loop forever making RGB values and pushing them out to the WS2812.
     let mut ticker = Ticker::every(Duration::from_hz(24));
 
-    #[cfg(feature = "timing_logs")]
-    let mut timing_tick_count: usize = 0;
-    #[cfg(feature = "timing_logs")]
-    let mut timing_total_us: u64 = 0;
-    #[cfg(feature = "timing_logs")]
-    let mut timing_max_us: u64 = 0;
-
     let mut anim = RgbAnim::new(is_right, clocks::rosc_freq());
     loop {
         match select3(RGB_CHANNEL.receive(), ANIM_CHANNEL.receive(), ticker.next()).await {
-            Either3::First(event) => {
-                #[cfg(feature = "timing_logs")]
-                let start = Instant::now();
-
-                match event {
-                    KbEvent::Press(i, j) => {
-                        anim.on_key_event(i, j, true);
-                    }
-                    KbEvent::Release(i, j) => {
-                        anim.on_key_event(i, j, false);
-                    }
+            Either3::First(event) => match event {
+                KbEvent::Press(i, j) => {
+                    anim.on_key_event(i, j, true);
                 }
-
-                #[cfg(feature = "timing_logs")]
-                {
-                    let elapsed_us = start.elapsed().as_micros();
-                    timing_total_us += elapsed_us;
-                    timing_tick_count += 1;
-                    if elapsed_us > timing_max_us {
-                        timing_max_us = elapsed_us;
-                    }
+                KbEvent::Release(i, j) => {
+                    anim.on_key_event(i, j, false);
                 }
-            }
-            Either3::Second(cmd) => {
-                #[cfg(feature = "timing_logs")]
-                let start = Instant::now();
-
-                match cmd {
-                    AnimCommand::Next => {
-                        let new_anim = anim.next_animation();
-                        if SIDE_CHANNEL.is_full() {
-                            defmt::error!("Side channel is full");
-                        }
-                        SIDE_CHANNEL.send(Event::RgbAnim(new_anim)).await;
-                        defmt::info!("New animation: {:?}", defmt::Debug2Format(&new_anim));
+            },
+            Either3::Second(cmd) => match cmd {
+                AnimCommand::Next => {
+                    let new_anim = anim.next_animation();
+                    if SIDE_CHANNEL.is_full() {
+                        defmt::error!("Side channel is full");
                     }
-                    AnimCommand::Set(new_anim) => {
-                        anim.set_animation(new_anim);
-                    }
-                    AnimCommand::ChangeLayer(layer) => {
-                        if layer == 0 {
-                            anim.restore_animation();
-                        } else {
-                            anim.temporarily_solid_color(layer);
-                        }
-                    }
-                    AnimCommand::Error => {
-                        anim.temporarily_solid_color(ERROR_COLOR_INDEX);
-                    }
-                    AnimCommand::Fixed => {
+                    SIDE_CHANNEL.send(Event::RgbAnim(new_anim)).await;
+                    defmt::info!("New animation: {:?}", defmt::Debug2Format(&new_anim));
+                }
+                AnimCommand::Set(new_anim) => {
+                    anim.set_animation(new_anim);
+                }
+                AnimCommand::ChangeLayer(layer) => {
+                    if layer == 0 {
                         anim.restore_animation();
+                    } else {
+                        anim.temporarily_solid_color(layer);
                     }
                 }
-
-                #[cfg(feature = "timing_logs")]
-                {
-                    let elapsed_us = start.elapsed().as_micros();
-                    timing_total_us += elapsed_us;
-                    timing_tick_count += 1;
-                    if elapsed_us > timing_max_us {
-                        timing_max_us = elapsed_us;
-                    }
+                AnimCommand::Error => {
+                    anim.temporarily_solid_color(ERROR_COLOR_INDEX);
                 }
-            }
+                AnimCommand::Fixed => {
+                    anim.restore_animation();
+                }
+            },
             Either3::Third(_) => {
-                #[cfg(feature = "timing_logs")]
-                let start = Instant::now();
-
                 let data = anim.tick();
                 ws2812.write(data).await;
-
-                #[cfg(feature = "timing_logs")]
-                {
-                    let elapsed_us = start.elapsed().as_micros();
-                    timing_total_us += elapsed_us;
-                    timing_tick_count += 1;
-                    if elapsed_us > timing_max_us {
-                        timing_max_us = elapsed_us;
-                    }
-                }
-            }
-        }
-
-        #[cfg(feature = "timing_logs")]
-        {
-            // Log every 120 iterations (5 seconds at 24Hz)
-            if timing_tick_count >= 120 {
-                defmt::info!(
-                    "[TIMING] rgb_leds total={}ms max={}us (over {} iterations in 5s)",
-                    timing_total_us / 1000,
-                    timing_max_us,
-                    timing_tick_count
-                );
-                timing_tick_count = 0;
-                timing_total_us = 0;
-                timing_max_us = 0;
             }
         }
     }
