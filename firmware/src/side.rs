@@ -360,9 +360,6 @@ fn setup_slave_compound(
 
 #[embassy_executor::task]
 async fn run(mut sides_comms: SidesComms<HwProtocol>) {
-    // sleep 3 seconds to allow both sides to boot
-
-    embassy_time::Timer::after(Duration::from_secs(30)).await;
     info!("Starting side comms protocol task...");
     sides_comms.run().await;
 }
