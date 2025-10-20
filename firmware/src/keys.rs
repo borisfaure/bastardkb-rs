@@ -54,6 +54,7 @@ impl<'a> Matrix<'a> {
                 }
             }
             col.set_high();
+            cortex_m::asm::delay(50);
         }
         matrix_state
     }
