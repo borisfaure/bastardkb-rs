@@ -8,7 +8,7 @@ authors.workspace = true
 keymap_basic = []
 keymap_borisfaure = []
 keymap_test = []
-input_leds = []
+input_leds = [ "utils/input_leds" ]
 defmt = [
     "dep:defmt",
     "dep:defmt-rtt",

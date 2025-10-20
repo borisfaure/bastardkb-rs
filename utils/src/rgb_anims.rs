@@ -31,8 +31,10 @@ pub enum RgbAnimType {
     Pulse,
     /// Pulse animation with solid color
     PulseSolid(u8),
+    #[cfg(feature = "input_leds")]
     /// Highlight pressed keys with a random color
     Input,
+    #[cfg(feature = "input_leds")]
     /// Highlight pressed keys with solid color
     InputSolid(u8), // Color index
 }
@@ -46,7 +48,9 @@ impl RgbAnimType {
             RgbAnimType::Wheel => Ok(2 << 5),
             RgbAnimType::Pulse => Ok(3 << 5),
             RgbAnimType::PulseSolid(s) if *s < 32 => Ok((4 << 5) | s),
+            #[cfg(feature = "input_leds")]
             RgbAnimType::Input => Ok(5 << 5),
+            #[cfg(feature = "input_leds")]
             RgbAnimType::InputSolid(s) if *s < 32 => Ok((6 << 5) | s),
             _ => Err(SerdeError::Serialization),
         }
@@ -60,7 +64,9 @@ impl RgbAnimType {
             2 => Ok(RgbAnimType::Wheel),
             3 => Ok(RgbAnimType::Pulse),
             4 => Ok(RgbAnimType::PulseSolid(value & 0x1f)),
+            #[cfg(feature = "input_leds")]
             5 => Ok(RgbAnimType::Input),
+            #[cfg(feature = "input_leds")]
             6 => Ok(RgbAnimType::InputSolid(value & 0x1f)),
             _ => Err(SerdeError::Deserialization),
         }
@@ -305,7 +311,9 @@ impl RgbAnim {
                 self.tick_pulse()
             }
             RgbAnimType::PulseSolid(_) => self.tick_pulse(),
+            #[cfg(feature = "input_leds")]
             RgbAnimType::Input => (),
+            #[cfg(feature = "input_leds")]
             RgbAnimType::InputSolid(_) => (),
         }
         self.frame = self.frame.wrapping_add(1);
@@ -314,6 +322,7 @@ impl RgbAnim {
 
     pub fn on_key_event(&mut self, i: u8, j: u8, is_press: bool) {
         match self.animation {
+            #[cfg(feature = "input_leds")]
             RgbAnimType::Input => {
                 self.led_data[self.get_led_index(i, j)] = if is_press {
                     RGB8::from(self.prng.random())
@@ -321,6 +330,7 @@ impl RgbAnim {
                     RGB8::default()
                 };
             }
+            #[cfg(feature = "input_leds")]
             RgbAnimType::InputSolid(color) => {
                 self.led_data[self.get_led_index(i, j)] = if is_press {
                     RGB8::indexed(color)
@@ -364,13 +374,22 @@ impl RgbAnim {
                 self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
             }
             RgbAnimType::PulseSolid(_) => {
-                self.animation = RgbAnimType::Input;
-                self.color = self.new_random_color();
+                #[cfg(feature = "input_leds")]
+                {
+                    self.animation = RgbAnimType::Input;
+                    self.color = self.new_random_color();
+                }
+                #[cfg(not(feature = "input_leds"))]
+                {
+                    self.animation = RgbAnimType::Off;
+                }
             }
+            #[cfg(feature = "input_leds")]
             RgbAnimType::Input => {
                 self.animation = RgbAnimType::InputSolid(DEFAULT_COLOR_INDEX);
                 self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
             }
+            #[cfg(feature = "input_leds")]
             RgbAnimType::InputSolid(_) => {
                 self.animation = RgbAnimType::Off;
                 self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
@@ -430,8 +449,11 @@ mod tests {
             RgbAnimType::Pulse,
             RgbAnimType::PulseSolid(0),
             RgbAnimType::PulseSolid(31),
+            #[cfg(feature = "input_leds")]
             RgbAnimType::Input,
+            #[cfg(feature = "input_leds")]
             RgbAnimType::InputSolid(0),
+            #[cfg(feature = "input_leds")]
             RgbAnimType::InputSolid(31),
         ];
         for t in types.iter() {

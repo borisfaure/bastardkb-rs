@@ -9,6 +9,7 @@ defmt = ["dep:defmt"]
 log-protocol = []
 dilemma = []
 cnano = []
+input_leds = []
 default = []
 
 [dependencies]
