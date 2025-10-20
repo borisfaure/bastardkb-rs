@@ -4,7 +4,8 @@
 #![no_std]
 #![no_main]
 
-use defmt::*;
+use utils::log::*;
+
 use embassy_executor::Spawner;
 use embassy_rp::dma::Channel;
 use embassy_rp::gpio::{Level, Output};
@@ -17,7 +18,10 @@ use embassy_rp::{bind_interrupts, clocks, Peri};
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
+#[cfg(not(feature = "defmt"))]
+use panic_halt as _;
 use utils::rgb_anims::RGB8;
+#[cfg(feature = "defmt")]
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {

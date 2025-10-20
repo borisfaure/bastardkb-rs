@@ -4,7 +4,6 @@
 #![no_std]
 #![no_main]
 
-use defmt::info;
 use embassy_executor::Spawner;
 use embassy_rp::{
     bind_interrupts,
@@ -18,6 +17,10 @@ use embassy_rp::{
     Peri,
 };
 use fixed::{traits::ToFixed, types::U56F8};
+#[cfg(not(feature = "defmt"))]
+use panic_halt as _;
+use utils::log::info;
+#[cfg(feature = "defmt")]
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct PioIrq1 {

@@ -33,6 +33,7 @@ run_doc() {
     for EXAMPLE in "${EXAMPLES[@]}"
     do
         cargo doc --example "$EXAMPLE"
+        cargo doc --example "$EXAMPLE" --features "defmt"
     done
     for MODEL in "${MODELS[@]}"
     do
@@ -53,11 +54,13 @@ run_clippy() {
     for EXAMPLE in "${EXAMPLES[@]}"
     do
         cargo clippy --example "$EXAMPLE" -- -D warnings
+        cargo clippy --example "$EXAMPLE" --features "defmt" -- -D warnings
     done
     for MODEL in "${MODELS[@]}"
     do
         for KEYMAP in "${KEYMAPS[@]}"
         do
+            cargo clippy --no-default-features --features "${KEYMAP},${MODEL},defmt" -- -D warnings
             cargo clippy --no-default-features --features "${KEYMAP},${MODEL}" -- -D warnings
         done
     done
@@ -67,11 +70,13 @@ run_check() {
     for EXAMPLE in "${EXAMPLES[@]}"
     do
         cargo check --example "$EXAMPLE"
+        cargo check --example "$EXAMPLE" --features "defmt"
     done
     for MODEL in "${MODELS[@]}"
     do
         for KEYMAP in "${KEYMAPS[@]}"
         do
+            cargo check --no-default-features --features "${KEYMAP},${MODEL},defmt"
             cargo check --no-default-features --features "${KEYMAP},${MODEL}"
         done
     done
@@ -86,11 +91,13 @@ run_build() {
     for EXAMPLE in "${EXAMPLES[@]}"
     do
         cargo build --example "$EXAMPLE"
+        cargo build --example "$EXAMPLE" --features "defmt"
     done
     for MODEL in "${MODELS[@]}"
     do
         for KEYMAP in "${KEYMAPS[@]}"
         do
+            cargo build --no-default-features --features "${KEYMAP},${MODEL},defmt"
             cargo build --no-default-features --features "${KEYMAP},${MODEL}"
         done
     done
@@ -101,11 +108,13 @@ run_build_release() {
     for EXAMPLE in "${EXAMPLES[@]}"
     do
         cargo build --release --example "$EXAMPLE"
+        cargo build --release --example "$EXAMPLE" --features "defmt"
     done
     for MODEL in "${MODELS[@]}"
     do
         for KEYMAP in "${KEYMAPS[@]}"
         do
+            cargo build --release --no-default-features --features "${KEYMAP},${MODEL},defmt"
             cargo build --release --no-default-features --features "${KEYMAP},${MODEL}"
         done
     done

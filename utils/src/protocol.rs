@@ -45,6 +45,7 @@ pub trait Hardware {
 const MAX_QUEUED_EVENTS: usize = 64;
 
 pub struct SideProtocol<W: Sized + Hardware> {
+    #[cfg(feature = "defmt")]
     // Name
     name: &'static str,
 
@@ -76,8 +77,9 @@ pub struct SideProtocol<W: Sized + Hardware> {
 
 impl<W: Sized + Hardware> SideProtocol<W> {
     /// Create a new side protocol
-    pub fn new(hw: W, name: &'static str) -> Self {
+    pub fn new(hw: W, #[cfg(feature = "defmt")] name: &'static str) -> Self {
         Self {
+            #[cfg(feature = "defmt")]
             name,
             sent: CircBuf::new(),
             queued_events: ArrayDeque::new(),
@@ -153,11 +155,7 @@ impl<W: Sized + Hardware> SideProtocol<W> {
     }
 
     /// On invalid sequence id
-    async fn on_invalid_sid(&mut self, msg: Message, expected: Sid, event: Event, sid: Sid) {
-        error!(
-            "[{}] Invalid sid received: expected {}, got {} for event {:?}",
-            self.name, expected, sid, event
-        );
+    async fn on_invalid_sid(&mut self, msg: Message, expected: Sid) {
         if let Some(last_msg) = self.last_msg {
             if last_msg == msg {
                 warn!("[{}] Last message was the same, skip it", self.name);
@@ -325,7 +323,11 @@ impl<W: Sized + Hardware> SideProtocol<W> {
                             self.handle_received_event(msg, event, sid).await
                         }
                         (Some(expected), _) => {
-                            self.on_invalid_sid(msg, expected, event, sid).await;
+                            error!(
+                                "[{}] Invalid sid received: expected {}, got {} for event {:?}",
+                                self.name, expected, sid, event
+                            );
+                            self.on_invalid_sid(msg, expected).await;
                             None
                         }
                     }

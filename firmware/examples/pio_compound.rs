@@ -14,9 +14,15 @@ use embassy_rp::{
         ShiftDirection, StateMachine,
     },
 };
-use embassy_time::{Duration, Instant, Ticker};
+#[cfg(feature = "defmt")]
+use embassy_time::Instant;
+use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
+use utils::log::{error, info, warn};
 
+#[cfg(not(feature = "defmt"))]
+use panic_halt as _;
+#[cfg(feature = "defmt")]
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct PioIrq1 {
@@ -144,7 +150,7 @@ fn setup_slave_compound<'a>(
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
-    defmt::info!("Compound PIO Test");
+    info!("Compound PIO Test");
 
     let p = embassy_rp::init(Default::default());
     let mut pio1 = Pio::new(p.PIO1, PioIrq1);
@@ -171,34 +177,45 @@ async fn main(_spawner: Spawner) {
 
     if is_right {
         // MASTER: Right side
-        defmt::info!("MASTER: Starting 1kHz compound PIO test with ping-pong counter");
+        info!("MASTER: Starting 1kHz compound PIO test with ping-pong counter");
         let mut sm = setup_master_compound(&mut pio1.common, pio1.sm0, &mut pio_pin);
 
         let mut ticker = Ticker::every(Duration::from_millis(1));
         let mut index: usize = 0;
+        #[cfg(feature = "defmt")]
         let mut iterations: u32 = 0;
+        #[cfg(feature = "defmt")]
         let mut errors: u32 = 0;
+        #[cfg(feature = "defmt")]
         let mut total_rtt_us: u64 = 0;
+        #[cfg(feature = "defmt")]
         let mut max_rtt_us: u64 = 0;
+        #[cfg(feature = "defmt")]
         let mut min_rtt_us: u64 = u64::MAX;
+        #[cfg(feature = "defmt")]
+        let mut rtt_us: u64 = 0;
 
         loop {
             ticker.next().await;
 
             let send_data = TEST_VALUES[index];
+            #[cfg(feature = "defmt")]
             let start = Instant::now();
 
             // Send current test value
             sm.tx().wait_push(send_data).await;
             let received = sm.rx().wait_pull().await;
 
-            let rtt_us = start.elapsed().as_micros();
-            total_rtt_us += rtt_us;
-            if rtt_us > max_rtt_us {
-                max_rtt_us = rtt_us;
-            }
-            if rtt_us < min_rtt_us {
-                min_rtt_us = rtt_us;
+            #[cfg(feature = "defmt")]
+            {
+                rtt_us = start.elapsed().as_micros();
+                total_rtt_us += rtt_us;
+                if rtt_us > max_rtt_us {
+                    max_rtt_us = rtt_us;
+                }
+                if rtt_us < min_rtt_us {
+                    min_rtt_us = rtt_us;
+                }
             }
 
             // Toggle LED
@@ -208,8 +225,10 @@ async fn main(_spawner: Spawner) {
             let expected_index = (index + 1) % TEST_VALUES.len();
             let expected = TEST_VALUES[expected_index];
             if received != expected {
-                errors += 1;
-                defmt::error!(
+                #[cfg(feature = "defmt")]
+                {
+                    errors += 1;
+                    error!(
                     "[ERROR #{}] RTT={}µs index={} Sent: 0x{:08x}, Expected: 0x{:08x}, Received: 0x{:08x}",
                     errors,
                     rtt_us,
@@ -218,29 +237,27 @@ async fn main(_spawner: Spawner) {
                     expected,
                     received
                 );
+                }
             }
 
             // Move to next value (skip one since slave will use index+1)
             index = (index + 2) % TEST_VALUES.len();
-            iterations += 1;
-
-            // Report every 5000 exchanges
-            if iterations % 5000 == 0 {
-                let avg_rtt_us = total_rtt_us / (iterations as u64);
-                defmt::info!(
-                    "=== #{}: index={}, errors={}, RTT: avg={}µs min={}µs max={}µs ===",
-                    iterations,
-                    index,
-                    errors,
-                    avg_rtt_us,
-                    min_rtt_us,
-                    max_rtt_us
-                );
+            #[cfg(feature = "defmt")]
+            {
+                iterations += 1;
+                // Report every 5000 exchanges
+                if iterations % 5000 == 0 {
+                    let avg_rtt_us = total_rtt_us / (iterations as u64);
+                    info!(
+                        "=== #{}: index={}, errors={}, RTT: avg={}µs min={}µs max={}µs ===",
+                        iterations, index, errors, avg_rtt_us, min_rtt_us, max_rtt_us
+                    );
+                }
             }
         }
     } else {
         // SLAVE: Left side
-        defmt::info!("SLAVE: Waiting for master, will reply with next test value");
+        info!("SLAVE: Waiting for master, will reply with next test value");
         let mut sm = setup_slave_compound(&mut pio1.common, pio1.sm0, &pio_pin);
 
         let mut expected_index: Option<usize> = None;
@@ -249,7 +266,7 @@ async fn main(_spawner: Spawner) {
             // Check RX FIFO level - warn if it's getting full
             let rx_level = sm.rx().level();
             if rx_level >= 3 {
-                defmt::warn!("SLAVE: RX FIFO filling up! Level: {}/4", rx_level);
+                warn!("SLAVE: RX FIFO filling up! Level: {}/4", rx_level);
             }
 
             // Receive value from master
@@ -272,16 +289,13 @@ async fn main(_spawner: Spawner) {
                         // Correct value received
                     }
                     Some(idx) => {
-                        defmt::panic!(
+                        panic!(
                             "SLAVE: Expected index {} (0x{:08x}), got index {} (0x{:08x})",
-                            expected,
-                            TEST_VALUES[expected],
-                            idx,
-                            received
+                            expected, TEST_VALUES[expected], idx, received
                         );
                     }
                     None => {
-                        defmt::panic!(
+                        panic!(
                             "SLAVE: Received invalid value 0x{:08x} (not in test array)",
                             received
                         );

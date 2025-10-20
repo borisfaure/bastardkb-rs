@@ -7,6 +7,10 @@
 
 use embassy_rp::gpio::{Input, Pull};
 use embassy_time::{Duration, Timer};
+#[cfg(not(feature = "defmt"))]
+use panic_halt as _;
+use utils::log::info;
+#[cfg(feature = "defmt")]
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
@@ -19,6 +23,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
 
     // Variables to keep track of the encoder state
     let mut last_a = pin_a.is_high();
+    #[cfg(feature = "defmt")]
     let mut position = 0;
 
     loop {
@@ -29,11 +34,17 @@ async fn main(_spawner: embassy_executor::Spawner) {
         // Check for a transition on pin A
         if current_a != last_a {
             if current_b != current_a {
-                position += 1;
+                #[cfg(feature = "defmt")]
+                {
+                    position += 1;
+                }
             } else {
-                position -= 1;
+                #[cfg(feature = "defmt")]
+                {
+                    position -= 1;
+                }
             }
-            defmt::println!("Position: {}", position);
+            info!("Position: {}", position);
         }
 
         // Update the last known state

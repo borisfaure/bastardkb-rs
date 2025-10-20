@@ -14,7 +14,8 @@ pub struct Trackpad<SPI, const DIAMETER: u32> {
     last_scale: u16,
 }
 
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Reading {
     x: u16,
     y: u16,

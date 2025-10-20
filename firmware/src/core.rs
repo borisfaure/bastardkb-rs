@@ -12,6 +12,7 @@ use embassy_time::{Duration, Ticker};
 use embassy_usb::class::hid::HidWriter;
 use keyberon::key_code::KeyCode;
 use keyberon::layout::{CustomEvent as KbCustomEvent, Event as KBEvent, Layout};
+use utils::log::{error, info, Debug2Format};
 use utils::rgb_anims::MOUSE_COLOR_INDEX;
 use utils::serde::Event;
 
@@ -36,7 +37,8 @@ pub static LAYOUT_CHANNEL: Channel<ThreadModeRawMutex, KBEvent, NB_EVENTS> = Cha
 
 /// Custom events for the layout, mostly mouse events
 //#[allow(clippy::enum_variant_names)]
-#[derive(Debug, PartialEq, defmt::Format)]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum CustomEvent {
     /// Mouse left click
     MouseLeftClick,
@@ -129,14 +131,14 @@ impl<'a> Core<'a> {
     /// Set the color layer of the RGB LEDs
     async fn set_color_layer(&mut self, layer: u8) {
         if self.color_layer != layer {
-            defmt::info!("Setting color layer to {}", layer);
+            info!("Setting color layer to {}", layer);
             self.color_layer = layer;
             if SIDE_CHANNEL.is_full() {
-                defmt::error!("Side channel is full");
+                error!("Side channel is full");
             }
             SIDE_CHANNEL.send(Event::RgbAnimChangeLayer(layer)).await;
             if ANIM_CHANNEL.is_full() {
-                defmt::error!("Anim channel is full");
+                error!("Anim channel is full");
             }
             ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
         }
@@ -152,7 +154,7 @@ impl<'a> Core<'a> {
     /// When the mouse becomes inactive, reset the leds to the current layer
     /// color
     async fn on_mouse_inactive(&mut self) {
-        defmt::info!("Mouse inactive");
+        info!("Mouse inactive");
         self.set_color_layer(self.current_layer as u8).await;
     }
 
@@ -160,7 +162,7 @@ impl<'a> Core<'a> {
     async fn on_key_event(&mut self, event: KBEvent) {
         let (i, j) = event.coord();
         let is_press = event.is_press();
-        defmt::info!(
+        info!(
             "Key event: {:?} {:?} auto_mouse_timeout: {}, filter_left_button_release: {}, filter_right_button_release: {}, pending_left: {}, pending_right: {}",
             is_press,
             (i, j),
@@ -176,7 +178,7 @@ impl<'a> Core<'a> {
                     // Left click pressed
                     if self.pending_right_click > 0 {
                         // Right click is pending, send middle click instead
-                        defmt::info!("Sending middle click (left pressed while right pending)");
+                        info!("Sending middle click (left pressed while right pending)");
                         self.mouse.on_middle_click(true);
                         self.pending_right_click = 0;
                         self.filter_left_button_release = true;
@@ -204,7 +206,7 @@ impl<'a> Core<'a> {
                     // Right click pressed
                     if self.pending_left_click > 0 {
                         // Left click is pending, send middle click instead
-                        defmt::info!("Sending middle click (right pressed while left pending)");
+                        info!("Sending middle click (right pressed while left pending)");
                         self.mouse.on_middle_click(true);
                         self.pending_left_click = 0;
                         self.filter_left_button_release = true;
@@ -251,7 +253,7 @@ impl<'a> Core<'a> {
             self.pending_left_click -= 1;
             if self.pending_left_click == 0 {
                 // Delay expired, send the left click
-                defmt::info!("Sending delayed left click");
+                info!("Sending delayed left click");
                 self.mouse.on_left_click(true);
             }
         }
@@ -259,7 +261,7 @@ impl<'a> Core<'a> {
             self.pending_right_click -= 1;
             if self.pending_right_click == 0 {
                 // Delay expired, send the right click
-                defmt::info!("Sending delayed right click");
+                info!("Sending delayed right click");
                 self.mouse.on_right_click(true);
             }
         }
@@ -268,7 +270,7 @@ impl<'a> Core<'a> {
         while let Some(mouse_report) = self.mouse.tick().await {
             let raw = mouse_report.serialize();
             if let Err(e) = self.hid_mouse_writer.write(&raw).await {
-                defmt::error!("Failed to send mouse report: {:?}", e);
+                error!("Failed to send mouse report: {:?}", e);
             }
             self.on_mouse_active().await;
         }
@@ -291,12 +293,12 @@ impl<'a> Core<'a> {
         if new_kb_report != self.kb_report {
             self.kb_report = new_kb_report;
             if HID_KB_CHANNEL.is_full() {
-                defmt::error!("HID KB channel is full");
+                error!("HID KB channel is full");
             }
             HID_KB_CHANNEL.send(new_kb_report).await;
         }
         if new_layer != self.current_layer {
-            defmt::info!("Layer: {}", new_layer);
+            info!("Layer: {}", new_layer);
             self.current_layer = new_layer;
             self.set_color_layer(new_layer as u8).await;
         }
@@ -345,7 +347,7 @@ impl<'a> Core<'a> {
             #[cfg(feature = "cnano")]
             KbCustomEvent::Press(CustomEvent::IncreaseCpi) => {
                 if SENSOR_CMD_CHANNEL.is_full() {
-                    defmt::error!("Sensor channel is full");
+                    error!("Sensor channel is full");
                 }
                 SENSOR_CMD_CHANNEL.send(SensorCommand::IncreaseCpi).await;
             }
@@ -354,7 +356,7 @@ impl<'a> Core<'a> {
             #[cfg(feature = "cnano")]
             KbCustomEvent::Press(CustomEvent::DecreaseCpi) => {
                 if SENSOR_CMD_CHANNEL.is_full() {
-                    defmt::error!("Sensor channel is full");
+                    error!("Sensor channel is full");
                 }
                 SENSOR_CMD_CHANNEL.send(SensorCommand::DecreaseCpi).await;
             }
@@ -363,7 +365,7 @@ impl<'a> Core<'a> {
 
             KbCustomEvent::Press(CustomEvent::NextLedAnimation) => {
                 if ANIM_CHANNEL.is_full() {
-                    defmt::error!("Anim channel is full");
+                    error!("Anim channel is full");
                 }
                 ANIM_CHANNEL.send(AnimCommand::Next).await;
             }
@@ -401,7 +403,7 @@ pub async fn run(mut core: Core<'static>) {
 fn keyboard_report_set_error(report: &mut KeyboardReport, kc: KeyCode) {
     report.modifier = 0;
     report.keycodes = [kc as u8; 6];
-    defmt::error!("Error: {:?}", defmt::Debug2Format(&kc));
+    error!("Error: {:?}", Debug2Format(&kc));
 }
 
 /// Generate a HID report from the current layout

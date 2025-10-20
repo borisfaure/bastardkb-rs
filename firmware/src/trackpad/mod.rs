@@ -1,5 +1,4 @@
 use crate::mouse::{MouseMove, MOUSE_MOVE_CHANNEL};
-use defmt::error;
 use embassy_executor::Spawner;
 use embassy_rp::{
     dma::AnyChannel,
@@ -10,6 +9,7 @@ use embassy_rp::{
 };
 use embassy_time::{Duration, Ticker};
 use embedded_hal_bus::spi::ExclusiveDevice;
+use utils::log::error;
 
 pub mod driver;
 mod glide;
@@ -65,7 +65,7 @@ async fn trackpad_task(spi: TrackpadSpi) {
             Ok(Some((dx, dy))) => {
                 if last_dx != dx || last_dy != dy {
                     if MOUSE_MOVE_CHANNEL.is_full() {
-                        defmt::error!("Mouse move channel is full");
+                        error!("Mouse move channel is full");
                     }
                     last_dx = dx;
                     last_dy = dy;

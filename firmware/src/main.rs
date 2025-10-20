@@ -3,6 +3,7 @@
 
 use crate::hid::{hid_kb_writer_handler, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR};
 use crate::keys::Matrix;
+use utils::log::info;
 #[cfg(feature = "cnano")]
 use crate::trackball::Trackball;
 use cortex_m::singleton;
@@ -18,7 +19,10 @@ use embassy_rp::{
 };
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, HidWriter, State};
 use embassy_usb::Builder;
+#[cfg(feature = "defmt")]
 use {defmt_rtt as _, panic_probe as _};
+#[cfg(not(feature = "defmt"))]
+use panic_halt as _;
 
 /// Layout events processing
 mod core;
@@ -83,7 +87,7 @@ bind_interrupts!(struct PioIrq1 {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
-    defmt::info!("Hello World!");
+    info!("Hello World!");
 
     // Create the driver, from the HAL.
     let driver = Driver::new(p.USB, Irqs);
@@ -114,7 +118,7 @@ async fn main(spawner: Spawner) {
 
     builder.handler(device_handler);
 
-    defmt::info!("Detecting side...");
+    info!("Detecting side...");
     #[cfg(feature = "cnano")]
     let is_right = device::is_right(Input::new(p.PIN_15, Pull::Up));
     #[cfg(feature = "dilemma")]
@@ -256,7 +260,7 @@ async fn main(spawner: Spawner) {
         trackpad::init(&spawner, p.SPI0, pins, tx_dma.into(), rx_dma.into());
     }
 
-    defmt::info!("let's go!");
+    info!("let's go!");
     hid_kb_reader_fut.await;
-    defmt::info!("end of main()");
+    info!("end of main()");
 }

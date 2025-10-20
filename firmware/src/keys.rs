@@ -8,6 +8,7 @@ use embassy_rp::gpio::{Input, Output};
 use embassy_time::{Duration, Ticker};
 use keyberon::debounce::Debouncer;
 use keyberon::layout::Event as KBEvent;
+use utils::log::error;
 use utils::serde::Event;
 
 /// Keyboard matrix rows
@@ -70,7 +71,7 @@ async fn matrix_scanner(
 
     #[cfg(feature = "cnano")]
     if encoder_pins.is_some() {
-        defmt::error!("Encoder pins are not supported on the Cnano");
+        error!("Encoder pins are not supported on the Cnano");
     }
 
     #[cfg(feature = "dilemma")]
@@ -125,16 +126,15 @@ async fn matrix_scanner(
         let is_host = is_host();
 
         for event in debouncer.events(matrix.scan().await).map(transform) {
-            //defmt::info!("Event: {:?}", defmt::Debug2Format(&event));
             if is_host {
                 if LAYOUT_CHANNEL.is_full() {
-                    defmt::error!("Layout channel is full");
+                    error!("Layout channel is full");
                 }
                 LAYOUT_CHANNEL.send(event).await;
                 #[cfg(feature = "input_leds")]
                 {
                     if RGB_CHANNEL.is_full() {
-                        defmt::error!("RGB channel is full");
+                        error!("RGB channel is full");
                     }
                     RGB_CHANNEL.send(event).await;
                 }
@@ -142,26 +142,26 @@ async fn matrix_scanner(
                 match event {
                     KBEvent::Press(r, c) => {
                         if SIDE_CHANNEL.is_full() {
-                            defmt::error!("Side channel is full");
+                            error!("Side channel is full");
                         }
                         SIDE_CHANNEL.send(Event::Press(r, c)).await;
                         #[cfg(feature = "input_leds")]
                         {
                             if RGB_CHANNEL.is_full() {
-                                defmt::error!("RGB channel is full");
+                                error!("RGB channel is full");
                             }
                             RGB_CHANNEL.send(event).await;
                         }
                     }
                     KBEvent::Release(r, c) => {
                         if SIDE_CHANNEL.is_full() {
-                            defmt::error!("Side channel is full");
+                            error!("Side channel is full");
                         }
                         SIDE_CHANNEL.send(Event::Release(r, c)).await;
                         #[cfg(feature = "input_leds")]
                         {
                             if RGB_CHANNEL.is_full() {
-                                defmt::error!("RGB channel is full");
+                                error!("RGB channel is full");
                             }
                             RGB_CHANNEL.send(event).await;
                         }
@@ -178,7 +178,7 @@ async fn matrix_scanner(
             // Check for a transition on pin A
             if current_a != last_pin_a {
                 if LAYOUT_CHANNEL.is_full() {
-                    defmt::error!("Layout channel is full");
+                    error!("Layout channel is full");
                 }
                 if current_b != current_a {
                     LAYOUT_CHANNEL.send(KBEvent::Press(3, 8)).await;

@@ -24,9 +24,12 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
 use futures::future;
+#[cfg(not(feature = "defmt"))]
+use panic_halt as _;
+use utils::log::info;
 use utils::protocol::{Hardware, SideProtocol};
 use utils::serde::Event;
-
+#[cfg(feature = "defmt")]
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct PioIrq1 {
@@ -105,7 +108,7 @@ async fn hardware_task(mut sm: SmCompound<'static>) {
 
         // Print heartbeat every 5000ms
         if loop_count % 5000 == 0 {
-            defmt::println!("HW task heartbeat: {} iterations", loop_count);
+            info!("HW task heartbeat: {} iterations", loop_count);
         }
 
         // ALWAYS send something to maintain 1ms timing
@@ -139,13 +142,17 @@ async fn hardware_task(mut sm: SmCompound<'static>) {
 impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
     /// Create a new event buffer
     pub fn new(
-        name: &'static str,
+        #[cfg(feature = "defmt")] name: &'static str,
         hw: W,
         status_led: &'a mut Output<'static>,
         is_master: bool,
     ) -> Self {
         Self {
-            protocol: SideProtocol::new(hw, name),
+            protocol: SideProtocol::new(
+                hw,
+                #[cfg(feature = "defmt")]
+                name,
+            ),
             status_led,
             is_right: is_master,
             ping_count: 0,
@@ -161,7 +168,7 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
             Event::Ping => {
                 self.ping_count += 1;
                 if !self.is_right {
-                    defmt::println!("Received Ping #{}", self.ping_count);
+                    info!("Received Ping #{}", self.ping_count);
                 }
             }
             Event::Press(_, _) => {
@@ -179,10 +186,9 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
         let now = embassy_time::Instant::now();
         if (now - self.last_stats).as_secs() >= 3 {
             if self.is_right {
-                defmt::println!(
+                info!(
                     "Right side stats: Press={}, Release={}",
-                    self.press_count,
-                    self.release_count
+                    self.press_count, self.release_count
                 );
             }
             self.last_stats = now;
@@ -191,7 +197,7 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
 
     /// Run the communication between the two sides in continuous mode (1ms cycle)
     pub async fn run(&mut self) {
-        defmt::println!("Starting communication loop");
+        info!("Starting communication loop");
         let mut ticker = Ticker::every(Duration::from_millis(1));
         let mut loop_count: u32 = 0;
         loop {
@@ -201,7 +207,7 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
 
             // Print heartbeat every 1000ms
             if loop_count % 1000 == 0 {
-                defmt::println!("Heartbeat: {} iterations", loop_count);
+                info!("Heartbeat: {} iterations", loop_count);
             }
 
             // Queue any pending events from the channel (non-blocking)
@@ -355,9 +361,16 @@ async fn ping_pong(
     // Spawn the hardware task that maintains 1ms timing
     spawner.spawn(hardware_task(sm)).unwrap();
 
+    #[cfg(feature = "defmt")]
     let name = if is_right { "Right" } else { "Left" };
     let hw = Hw { on_error: false };
-    let mut sides_comms: SidesComms<'_, Hw> = SidesComms::new(name, hw, status_led, is_right);
+    let mut sides_comms: SidesComms<'_, Hw> = SidesComms::new(
+        #[cfg(feature = "defmt")]
+        name,
+        hw,
+        status_led,
+        is_right,
+    );
     sides_comms.run().await;
 }
 
@@ -387,7 +400,7 @@ async fn sender(is_right: bool) {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    defmt::println!("=== Protocol Example Starting ===");
+    info!("=== Protocol Example Starting ===");
 
     let p = embassy_rp::init(Default::default());
     let pio1 = Pio::new(p.PIO1, PioIrq1);
@@ -396,9 +409,9 @@ async fn main(spawner: Spawner) {
     let is_right = Input::new(p.PIN_29, Pull::Up).is_high();
 
     if is_right {
-        defmt::println!("=== RIGHT SIDE (Master) ===");
+        info!("=== RIGHT SIDE (Master) ===");
     } else {
-        defmt::println!("=== LEFT SIDE (Slave) ===");
+        info!("=== LEFT SIDE (Slave) ===");
     }
 
     let pp_fut = ping_pong(

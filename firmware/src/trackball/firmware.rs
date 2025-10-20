@@ -1,4 +1,5 @@
-#[derive(Debug, PartialEq, defmt::Format)]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum Register {
     ProductId = 0x00,

@@ -9,6 +9,7 @@ use embassy_rp::spi::{Async, Error as SpiError, Instance as SpiInstance, Mode, S
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_hal::spi::SpiBus;
+use utils::log::{error, info, Debug2Format};
 
 mod firmware;
 
@@ -28,20 +29,23 @@ const DEFAULT_ANGLE_TUNE: u8 = 32;
 /// Sensor refresh rate, in ms
 const REFRESH_RATE_MS: u64 = 10;
 
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SensorCommand {
     IncreaseCpi,
     DecreaseCpi,
 }
 
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct BurstData {
     pub motion: bool,
     pub dx: i16,
     pub dy: i16,
 }
 
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum TrackballError {
     InvalidSignature,
     Spi(SpiError),
@@ -71,7 +75,7 @@ pub type TrackballDev = Trackball<'static, SPI0, Async>;
 pub async fn run(mut ball: TrackballDev) {
     let res = ball.start().await;
     if let Err(e) = res {
-        defmt::error!("Error: {:?}", defmt::Debug2Format(&e));
+        error!("Error: {:?}", Debug2Format(&e));
     }
     ball.run().await;
 }
@@ -133,7 +137,7 @@ impl<'a, I: SpiInstance, M: Mode> Trackball<'a, I, M> {
             dx: ((buf[5] as i16) << 8) | (buf[4] as i16),
         };
         if buf[0] & 0b111 != 0 {
-            defmt::error!("Motion burst error");
+            error!("Motion burst error");
             self.in_burst = false;
         }
         // if the motion bit is not set, the dx and dy values are not valid
@@ -157,7 +161,7 @@ impl<'a, I: SpiInstance, M: Mode> Trackball<'a, I, M> {
     }
 
     pub async fn set_cpi(&mut self, cpi: u16) -> Result<(), TrackballError> {
-        defmt::info!("Setting CPI to {}", cpi);
+        info!("Setting CPI to {}", cpi);
         let val: u8 = if cpi < 100 {
             0
         } else if cpi > 12000 {
@@ -296,7 +300,7 @@ impl<'a, I: SpiInstance, M: Mode> Trackball<'a, I, M> {
                     if let Ok(burst) = burst_res {
                         if self.last_dx != burst.dx || self.last_dy != burst.dy {
                             if MOUSE_MOVE_CHANNEL.is_full() {
-                                defmt::error!("Mouse move channel is full");
+                                error!("Mouse move channel is full");
                             }
                             MOUSE_MOVE_CHANNEL
                                 .send(MouseMove {
@@ -308,7 +312,7 @@ impl<'a, I: SpiInstance, M: Mode> Trackball<'a, I, M> {
                             self.last_dy = burst.dy;
                         }
                     } else if let Err(e) = burst_res {
-                        defmt::error!("Error: {:?}", defmt::Debug2Format(&e));
+                        error!("Error: {:?}", Debug2Format(&e));
                     }
                 }
                 Either::Second(event) => match event {

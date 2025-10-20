@@ -3,7 +3,8 @@ use crate::hid::MouseReport;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 
 /// Mouse move event
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct MouseMove {
     /// Delta X
     pub dx: i16,

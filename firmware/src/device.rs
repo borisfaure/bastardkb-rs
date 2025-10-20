@@ -1,5 +1,5 @@
 use core::sync::atomic::{AtomicBool, Ordering};
-use defmt::*;
+use utils::log::info;
 use embassy_rp::gpio::Input;
 use embassy_usb::Handler;
 
@@ -8,7 +8,7 @@ static CONFIGURED: AtomicBool = AtomicBool::new(false);
 
 pub fn is_right(pin: Input) -> bool {
     let is_right = pin.is_high();
-    defmt::info!("Side detected: is_right: {}", is_right);
+    info!("Side detected: is_right: {}", is_right);
     is_right
 }
 

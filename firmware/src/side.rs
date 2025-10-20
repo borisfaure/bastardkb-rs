@@ -13,6 +13,7 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
 use keyberon::layout::Event as KBEvent;
+use utils::log::{error, info, warn, Debug2Format};
 use utils::protocol::{Hardware, SideProtocol};
 use utils::serde::Event;
 
@@ -61,7 +62,7 @@ struct HwProtocol {
 impl Hardware for HwProtocol {
     async fn queue_send(&mut self, msg: u32) {
         if HW_TX_QUEUE.is_full() {
-            defmt::error!("HW TX queue is full");
+            error!("HW TX queue is full");
         }
         HW_TX_QUEUE.send(msg).await;
     }
@@ -75,14 +76,14 @@ impl Hardware for HwProtocol {
         if error && !self.on_error {
             self.on_error = true;
             if ANIM_CHANNEL.is_full() {
-                defmt::error!("Anim channel is full");
+                error!("Anim channel is full");
             }
             ANIM_CHANNEL.send(AnimCommand::Error).await;
         }
         if !error && self.on_error {
             self.on_error = false;
             if ANIM_CHANNEL.is_full() {
-                defmt::error!("Anim channel is full");
+                error!("Anim channel is full");
             }
             ANIM_CHANNEL.send(AnimCommand::Fixed).await;
         }
@@ -93,7 +94,7 @@ impl Hardware for HwProtocol {
 /// This runs independently and maintains continuous 1ms timing
 #[embassy_executor::task]
 async fn hardware_task(mut sm: SmCompound<'static>) {
-    defmt::info!(
+    info!(
         "Starting side comms hardware task (PIO SM0 at {} bps)",
         SPEED
     );
@@ -105,7 +106,7 @@ async fn hardware_task(mut sm: SmCompound<'static>) {
         ticker.next().await;
         tick_count = tick_count.wrapping_add(1);
         if tick_count == next_log {
-            defmt::info!("Side comms running... (tick_count={})", tick_count);
+            info!("Side comms running... (tick_count={})", tick_count);
             next_log = next_log.wrapping_mul(2);
         }
 
@@ -133,25 +134,25 @@ async fn process_event(event: Event) {
         Event::Noop => {}
         Event::Press(i, j) => {
             if LAYOUT_CHANNEL.is_full() {
-                defmt::error!("Layout channel is full");
+                error!("Layout channel is full");
             }
             LAYOUT_CHANNEL.send(KBEvent::Press(i, j)).await;
         }
         Event::Release(i, j) => {
             if LAYOUT_CHANNEL.is_full() {
-                defmt::error!("Layout channel is full");
+                error!("Layout channel is full");
             }
             LAYOUT_CHANNEL.send(KBEvent::Release(i, j)).await;
         }
         Event::RgbAnim(anim) => {
             if ANIM_CHANNEL.is_full() {
-                defmt::error!("Anim channel is full");
+                error!("Anim channel is full");
             }
             ANIM_CHANNEL.send(AnimCommand::Set(anim)).await;
         }
         Event::RgbAnimChangeLayer(layer) => {
             if ANIM_CHANNEL.is_full() {
-                defmt::error!("Anim channel is full");
+                error!("Anim channel is full");
             }
             ANIM_CHANNEL.send(AnimCommand::ChangeLayer(layer)).await;
         }
@@ -159,16 +160,24 @@ async fn process_event(event: Event) {
             todo!("Seed random {}", seed);
         }
         _ => {
-            defmt::warn!("Unhandled event {:?}", defmt::Debug2Format(&event));
+            warn!("Unhandled event {:?}", Debug2Format(&event));
         }
     }
 }
 
 impl<W: Sized + Hardware> SidesComms<W> {
     /// Create a new event buffer
-    pub fn new(name: &'static str, hw: W, status_led: Output<'static>) -> Self {
+    pub fn new(
+        #[cfg(feature = "defmt")] name: &'static str,
+        hw: W,
+        status_led: Output<'static>,
+    ) -> Self {
         Self {
-            protocol: SideProtocol::new(hw, name),
+            protocol: SideProtocol::new(
+                hw,
+                #[cfg(feature = "defmt")]
+                name,
+            ),
             status_led,
             msg_sent_real: 0,
             msg_sent_noop: 0,
@@ -185,7 +194,7 @@ impl<W: Sized + Hardware> SidesComms<W> {
             // Check if it's time to report stats (non-blocking)
             let now = Instant::now();
             if now.duration_since(self.msg_stats_last_report) >= Duration::from_secs(5) {
-                defmt::info!(
+                info!(
                     "[MSG_STATS] sent: real={} noop={} | received: real={} noop={} (in last ~5s)",
                     self.msg_sent_real,
                     self.msg_sent_noop,
@@ -354,7 +363,7 @@ async fn run(mut sides_comms: SidesComms<HwProtocol>) {
     // sleep 3 seconds to allow both sides to boot
 
     embassy_time::Timer::after(Duration::from_secs(30)).await;
-    defmt::info!("Starting side comms protocol task...");
+    info!("Starting side comms protocol task...");
     sides_comms.run().await;
 }
 
@@ -369,9 +378,9 @@ pub async fn init(
     let mut pio_pin = pio_common.make_pio_pin(gpio_pin1);
     pio_pin.set_pull(Pull::Up);
 
-    defmt::info!("Side is {}", if is_right { "Right" } else { "Left" });
+    info!("Side is {}", if is_right { "Right" } else { "Left" });
 
-    defmt::info!("Setting up PIO side communication...");
+    info!("Setting up PIO side communication...");
     // Setup compound PIO state machine (master or slave)
     let sm = if is_right {
         setup_master_compound(&mut pio_common, sm0, &mut pio_pin)
@@ -379,16 +388,22 @@ pub async fn init(
         setup_slave_compound(&mut pio_common, sm0, &pio_pin)
     };
 
-    defmt::info!("setup complete");
+    info!("setup complete");
 
     // Spawn the hardware task that maintains 1ms timing
     spawner.must_spawn(hardware_task(sm));
-    defmt::info!("hardware task spawned");
+    info!("hardware task spawned");
 
+    #[cfg(feature = "defmt")]
     let name = if is_right { "Right" } else { "Left" };
     // Create protocol instance with queue-based hardware interface
     let protocol_hw = HwProtocol { on_error: false };
-    let comms = SidesComms::new(name, protocol_hw, status_led);
+    let comms = SidesComms::new(
+        #[cfg(feature = "defmt")]
+        name,
+        protocol_hw,
+        status_led,
+    );
     spawner.must_spawn(run(comms));
-    defmt::info!("protocol task spawned");
+    info!("protocol task spawned");
 }

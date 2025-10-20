@@ -16,9 +16,11 @@ use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
 use keyberon::layout::Event as KbEvent;
+use utils::log::{error, info};
 use utils::rgb_anims::{RgbAnim, RgbAnimType, ERROR_COLOR_INDEX, NUM_LEDS, RGB8};
 use utils::serde::Event;
 
+#[cfg(feature = "defmt")]
 use {defmt_rtt as _, panic_probe as _};
 
 /// Number of events in the channel from keys
@@ -27,7 +29,8 @@ const NB_EVENTS: usize = 128;
 pub static RGB_CHANNEL: Channel<ThreadModeRawMutex, KbEvent, NB_EVENTS> = Channel::new();
 
 /// Animation commands
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AnimCommand {
     /// Set the next animation
     Next,
@@ -134,10 +137,10 @@ pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS, AnyChannel>, is_
                 AnimCommand::Next => {
                     let new_anim = anim.next_animation();
                     if SIDE_CHANNEL.is_full() {
-                        defmt::error!("Side channel is full");
+                        error!("Side channel is full");
                     }
                     SIDE_CHANNEL.send(Event::RgbAnim(new_anim)).await;
-                    defmt::info!("New animation: {:?}", defmt::Debug2Format(&new_anim));
+                    info!("New animation: {:?}", defmt::Debug2Format(&new_anim));
                 }
                 AnimCommand::Set(new_anim) => {
                     anim.set_animation(new_anim);

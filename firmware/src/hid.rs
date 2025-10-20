@@ -1,12 +1,12 @@
 use crate::core::LAYOUT_CHANNEL;
 use crate::device::is_host;
-use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_usb::class::hid::{ReportId, RequestHandler};
 use embassy_usb::control::OutResponse;
+use utils::log::{error, info, warn};
 
 /// Only one report is sent at a time
 const NB_REPORTS: usize = 128;
@@ -107,7 +107,8 @@ pub const MOUSE_REPORT_DESCRIPTOR: &[u8] = &[
 ];
 
 /// Keyboard HID report
-#[derive(Debug, Default, PartialEq, Clone, Copy, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub struct KeyboardReport {
     /// Modifier keys, in the following order (from least significant bit):
     /// - Left Control
@@ -140,7 +141,8 @@ impl KeyboardReport {
 }
 
 /// Mouse HID report
-#[derive(Debug, Default, PartialEq, Clone, Copy, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub struct MouseReport {
     /// Buttons state
     /// Button 1 to 8 where Button1 is the LSB
@@ -222,7 +224,7 @@ async fn caps_lock_change() {
     // send a key press and release event for the CapsLock key so that
     // the keymap can do something with it, like changing the default layer
     if LAYOUT_CHANNEL.is_full() {
-        defmt::error!("Layout channel is full");
+        error!("Layout channel is full");
     }
     LAYOUT_CHANNEL
         .send(keyberon::layout::Event::Press(3, 0))
@@ -236,7 +238,7 @@ async fn num_lock_change() {
     // send a key press and release event for the NumLock key so that
     // the keymap can do something with it, like changing the default layer
     if LAYOUT_CHANNEL.is_full() {
-        defmt::error!("Layout channel is full");
+        error!("Layout channel is full");
     }
     LAYOUT_CHANNEL
         .send(keyberon::layout::Event::Press(3, 1))
