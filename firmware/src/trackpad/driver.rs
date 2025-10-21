@@ -136,7 +136,7 @@ impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
             }
         }
 
-        Ok(Some((report_y, -report_x)))
+        Ok(Some((report_y, report_x.saturating_neg())))
     }
 
     async fn read_data(&mut self) -> Result<Option<Reading>, SPI::Error> {
