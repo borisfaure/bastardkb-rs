@@ -1,7 +1,7 @@
 use core::sync::atomic::{AtomicBool, Ordering};
-use utils::log::info;
 use embassy_rp::gpio::Input;
 use embassy_usb::Handler;
+use utils::log::info;
 
 /// Device configured flag
 static CONFIGURED: AtomicBool = AtomicBool::new(false);

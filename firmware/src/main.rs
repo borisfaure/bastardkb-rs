@@ -3,7 +3,6 @@
 
 use crate::hid::{hid_kb_writer_handler, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR};
 use crate::keys::Matrix;
-use utils::log::info;
 #[cfg(feature = "cnano")]
 use crate::trackball::Trackball;
 use cortex_m::singleton;
@@ -19,10 +18,11 @@ use embassy_rp::{
 };
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, HidWriter, State};
 use embassy_usb::Builder;
-#[cfg(feature = "defmt")]
-use {defmt_rtt as _, panic_probe as _};
 #[cfg(not(feature = "defmt"))]
 use panic_halt as _;
+use utils::log::info;
+#[cfg(feature = "defmt")]
+use {defmt_rtt as _, panic_probe as _};
 
 /// Layout events processing
 mod core;
