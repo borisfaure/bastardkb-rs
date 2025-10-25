@@ -16,6 +16,16 @@ impl XorShift32 {
         Self { state: seed }
     }
 
+    /// Seed the PRNG
+    pub fn seed(&mut self, seed: u32) {
+        self.state = seed;
+    }
+
+    /// Get the current state
+    pub fn get_state(&self) -> u32 {
+        self.state
+    }
+
     /// Get the next random number
     pub fn random(&mut self) -> u32 {
         let mut x = self.state;
