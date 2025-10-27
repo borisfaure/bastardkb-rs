@@ -61,7 +61,7 @@ heapless = { version = "0.9", default-features = false }
 nb = "1.0"
 num = { version = "0.4", default-features = false }
 num_enum = { version = "0.7.3", default-features = false }
-bitfield-struct = "0.11"
+bitfield-struct = "0.12"
 
 [dev-dependencies]
 futures = { version = "0.3.17", default-features = false, features = ["async-await"] }
