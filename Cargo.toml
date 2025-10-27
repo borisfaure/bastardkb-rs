@@ -13,3 +13,6 @@ authors = ["Boris Faure <boris@fau.re>"]
 opt-level = 'z'
 lto = true
 incremental = false
+
+[workspace.dependencies]
+arraydeque = { version = "0.5", default-features = false }

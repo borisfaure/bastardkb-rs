@@ -28,6 +28,7 @@ default = ["keymap_borisfaure", "dilemma"]
 
 [dependencies]
 utils = {path = "../utils"}
+arraydeque.workspace = true
 embassy-embedded-hal = { version = "0.5" }
 embassy-sync = { version = "0.7" }
 embassy-executor = { version = "0.9", features = ["arch-cortex-m", "executor-thread", "executor-interrupt"] }
