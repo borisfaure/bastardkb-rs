@@ -31,12 +31,6 @@ pub enum RgbAnimType {
     Pulse,
     /// Pulse animation with solid color
     PulseSolid(u8),
-    #[cfg(feature = "input_leds")]
-    /// Highlight pressed keys with a random color
-    Input,
-    #[cfg(feature = "input_leds")]
-    /// Highlight pressed keys with solid color
-    InputSolid(u8), // Color index
 }
 
 impl RgbAnimType {
@@ -48,10 +42,6 @@ impl RgbAnimType {
             RgbAnimType::Wheel => Ok(2 << 5),
             RgbAnimType::Pulse => Ok(3 << 5),
             RgbAnimType::PulseSolid(s) if *s < 32 => Ok((4 << 5) | s),
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::Input => Ok(5 << 5),
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::InputSolid(s) if *s < 32 => Ok((6 << 5) | s),
             _ => Err(SerdeError::Serialization),
         }
     }
@@ -64,10 +54,6 @@ impl RgbAnimType {
             2 => Ok(RgbAnimType::Wheel),
             3 => Ok(RgbAnimType::Pulse),
             4 => Ok(RgbAnimType::PulseSolid(value & 0x1f)),
-            #[cfg(feature = "input_leds")]
-            5 => Ok(RgbAnimType::Input),
-            #[cfg(feature = "input_leds")]
-            6 => Ok(RgbAnimType::InputSolid(value & 0x1f)),
             _ => Err(SerdeError::Deserialization),
         }
     }
@@ -166,9 +152,6 @@ pub struct RgbAnim {
     /// The LED data
     led_data: [RGB8; NUM_LEDS],
 
-    /// Whether the animation is on the right side
-    is_right: bool,
-
     /// current color
     color: RGB8,
 
@@ -191,39 +174,7 @@ fn wheel(mut wheel_pos: u8) -> RGB8 {
     RGB8::new(wheel_pos * 3, 255 - wheel_pos * 3, 0)
 }
 
-/// Index of leds on the right side
-#[cfg(not(feature = "dilemma"))]
-const MATRIX_LED_RIGHT: [[usize; COLS]; ROWS] = [
-    [2, 3, 8, 9, 12],
-    [1, 4, 7, 10, 13],
-    [0, 5, 6, 11, 14],
-    [255, 255, 255, 15, 16],
-];
-#[cfg(feature = "dilemma")]
-const MATRIX_LED_RIGHT: [[usize; COLS]; ROWS] = [
-    [22, 21, 20, 19, 18],
-    [23, 24, 25, 26, 27],
-    [32, 31, 30, 29, 28],
-    [99, 99, 99, 34, 35],
-];
-/// Index of leds on the left side
-#[cfg(not(feature = "dilemma"))]
-const MATRIX_LED_LEFT: [[usize; COLS]; ROWS] = [
-    [2, 3, 8, 9, 12],
-    [1, 4, 7, 10, 13],
-    [0, 5, 6, 11, 14],
-    [15, 16, 17, 255, 255],
-];
-#[cfg(feature = "dilemma")]
-const MATRIX_LED_LEFT: [[usize; COLS]; ROWS] = [
-    [22, 21, 20, 19, 18],
-    [23, 24, 25, 26, 27],
-    [32, 31, 30, 29, 28],
-    [99, 99, 33, 34, 35],
-];
-
 ///>>> from math import sin, pi; [int(sin(x/128.0*pi)**4*0xAF) for x in range(128)]
-///
 const PULSE_TABLE: [u16; 128] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 4, 5, 7, 8, 10, 12, 14, 16, 19, 22, 25, 28,
     31, 35, 39, 43, 48, 52, 57, 62, 67, 72, 78, 83, 89, 94, 100, 105, 111, 116, 122, 127, 132, 137,
@@ -235,24 +186,14 @@ const PULSE_TABLE: [u16; 128] = [
 
 impl RgbAnim {
     /// Create a new RGB Animation
-    pub fn new(is_right: bool, seed: u32) -> Self {
+    pub fn new(seed: u32) -> Self {
         RgbAnim {
             frame: 0,
             animation: RgbAnimType::SolidColor(0),
             saved_animation: None,
             led_data: [RGB8::default(); NUM_LEDS],
-            is_right,
             color: RGB8::indexed(DEFAULT_COLOR_INDEX),
             prng: XorShift32::new(seed),
-        }
-    }
-
-    /// Get the LED index for a key
-    fn get_led_index(&self, i: u8, j: u8) -> usize {
-        if self.is_right {
-            MATRIX_LED_RIGHT[i as usize][(9 - j) as usize]
-        } else {
-            MATRIX_LED_LEFT[i as usize][j as usize]
         }
     }
 
@@ -311,35 +252,9 @@ impl RgbAnim {
                 self.tick_pulse()
             }
             RgbAnimType::PulseSolid(_) => self.tick_pulse(),
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::Input => (),
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::InputSolid(_) => (),
         }
         self.frame = self.frame.wrapping_add(1);
         &self.led_data
-    }
-
-    pub fn on_key_event(&mut self, i: u8, j: u8, is_press: bool) {
-        match self.animation {
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::Input => {
-                self.led_data[self.get_led_index(i, j)] = if is_press {
-                    RGB8::from(self.prng.random())
-                } else {
-                    RGB8::default()
-                };
-            }
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::InputSolid(color) => {
-                self.led_data[self.get_led_index(i, j)] = if is_press {
-                    RGB8::indexed(color)
-                } else {
-                    RGB8::default()
-                };
-            }
-            _ => {}
-        }
     }
 
     /// Cycle to the next animation
@@ -374,25 +289,7 @@ impl RgbAnim {
                 self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
             }
             RgbAnimType::PulseSolid(_) => {
-                #[cfg(feature = "input_leds")]
-                {
-                    self.animation = RgbAnimType::Input;
-                    self.color = self.new_random_color();
-                }
-                #[cfg(not(feature = "input_leds"))]
-                {
-                    self.animation = RgbAnimType::Off;
-                }
-            }
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::Input => {
-                self.animation = RgbAnimType::InputSolid(DEFAULT_COLOR_INDEX);
-                self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
-            }
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::InputSolid(_) => {
                 self.animation = RgbAnimType::Off;
-                self.color = RGB8::indexed(DEFAULT_COLOR_INDEX);
             }
         }
         if self.saved_animation.is_some() {
@@ -449,12 +346,6 @@ mod tests {
             RgbAnimType::Pulse,
             RgbAnimType::PulseSolid(0),
             RgbAnimType::PulseSolid(31),
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::Input,
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::InputSolid(0),
-            #[cfg(feature = "input_leds")]
-            RgbAnimType::InputSolid(31),
         ];
         for t in types.iter() {
             let value = t.to_u8().unwrap();

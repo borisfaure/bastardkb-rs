@@ -13,7 +13,9 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
 use keyberon::layout::Event as KBEvent;
-use utils::log::{error, info, warn, Debug2Format};
+#[cfg(feature = "defmt")]
+use utils::log::Debug2Format;
+use utils::log::{error, info, warn};
 use utils::protocol::{Hardware, SideProtocol};
 use utils::serde::Event;
 

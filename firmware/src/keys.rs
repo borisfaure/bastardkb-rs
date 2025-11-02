@@ -1,7 +1,5 @@
 use crate::core::LAYOUT_CHANNEL;
 use crate::device::is_host;
-#[cfg(feature = "input_leds")]
-use crate::rgb_leds::RGB_CHANNEL;
 use crate::side::SIDE_CHANNEL;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Output};
@@ -132,13 +130,6 @@ async fn matrix_scanner(
                     error!("Layout channel is full");
                 }
                 LAYOUT_CHANNEL.send(event).await;
-                #[cfg(feature = "input_leds")]
-                {
-                    if RGB_CHANNEL.is_full() {
-                        error!("RGB channel is full");
-                    }
-                    RGB_CHANNEL.send(event).await;
-                }
             } else {
                 match event {
                     KBEvent::Press(r, c) => {
@@ -146,26 +137,12 @@ async fn matrix_scanner(
                             error!("Side channel is full");
                         }
                         SIDE_CHANNEL.send(Event::Press(r, c)).await;
-                        #[cfg(feature = "input_leds")]
-                        {
-                            if RGB_CHANNEL.is_full() {
-                                error!("RGB channel is full");
-                            }
-                            RGB_CHANNEL.send(event).await;
-                        }
                     }
                     KBEvent::Release(r, c) => {
                         if SIDE_CHANNEL.is_full() {
                             error!("Side channel is full");
                         }
                         SIDE_CHANNEL.send(Event::Release(r, c)).await;
-                        #[cfg(feature = "input_leds")]
-                        {
-                            if RGB_CHANNEL.is_full() {
-                                error!("RGB channel is full");
-                            }
-                            RGB_CHANNEL.send(event).await;
-                        }
                     }
                 }
             }

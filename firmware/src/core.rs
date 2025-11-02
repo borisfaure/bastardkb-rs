@@ -4,6 +4,8 @@ use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use crate::side::SIDE_CHANNEL;
 #[cfg(feature = "cnano")]
 use crate::trackball::{SensorCommand, SENSOR_CMD_CHANNEL};
+#[cfg(feature = "defmt")]
+use defmt::Debug2Format;
 use embassy_futures::select::{select, Either};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
@@ -12,7 +14,7 @@ use embassy_time::{Duration, Ticker};
 use embassy_usb::class::hid::HidWriter;
 use keyberon::key_code::KeyCode;
 use keyberon::layout::{CustomEvent as KbCustomEvent, Event as KBEvent, Layout};
-use utils::log::{error, info, Debug2Format};
+use utils::log::{error, info};
 use utils::rgb_anims::MOUSE_COLOR_INDEX;
 use utils::serde::Event;
 
@@ -269,9 +271,12 @@ impl<'a> Core<'a> {
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
             let raw = mouse_report.serialize();
+            #[cfg(feature = "defmt")]
             if let Err(e) = self.hid_mouse_writer.write(&raw).await {
                 error!("Failed to send mouse report: {:?}", e);
             }
+            #[cfg(not(feature = "defmt"))]
+            let _ = self.hid_mouse_writer.write(&raw).await;
             self.on_mouse_active().await;
         }
         if self.auto_mouse_timeout > 0 {

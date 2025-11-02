@@ -1,6 +1,6 @@
 use crate::side::SIDE_CHANNEL;
 use embassy_executor::Spawner;
-use embassy_futures::select::{select3, Either3};
+use embassy_futures::select::{select, Either};
 use embassy_rp::{
     clocks,
     dma::{AnyChannel, Channel as DmaChannel},
@@ -15,18 +15,12 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
-use keyberon::layout::Event as KbEvent;
 use utils::log::{error, info};
 use utils::rgb_anims::{RgbAnim, RgbAnimType, ERROR_COLOR_INDEX, NUM_LEDS, RGB8};
 use utils::serde::Event;
 
 #[cfg(feature = "defmt")]
 use {defmt_rtt as _, panic_probe as _};
-
-/// Number of events in the channel from keys
-const NB_EVENTS: usize = 128;
-/// Channel to send `keyberon::layout::event` events to the layout handler
-pub static RGB_CHANNEL: Channel<ThreadModeRawMutex, KbEvent, NB_EVENTS> = Channel::new();
 
 /// Animation commands
 #[derive(Debug)]
@@ -43,7 +37,8 @@ pub enum AnimCommand {
     /// Error has been fixed
     Fixed,
 }
-
+/// Number of events in the animation channel
+pub const NB_EVENTS: usize = 64;
 /// Channel to change the animation of the RGB LEDs
 pub static ANIM_CHANNEL: Channel<ThreadModeRawMutex, AnimCommand, NB_EVENTS> = Channel::new();
 
@@ -122,18 +117,10 @@ pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS, AnyChannel>, is_
     // Loop forever making RGB values and pushing them out to the WS2812.
     let mut ticker = Ticker::every(Duration::from_hz(24));
 
-    let mut anim = RgbAnim::new(is_right, clocks::rosc_freq());
+    let mut anim = RgbAnim::new(clocks::rosc_freq());
     loop {
-        match select3(RGB_CHANNEL.receive(), ANIM_CHANNEL.receive(), ticker.next()).await {
-            Either3::First(event) => match event {
-                KbEvent::Press(i, j) => {
-                    anim.on_key_event(i, j, true);
-                }
-                KbEvent::Release(i, j) => {
-                    anim.on_key_event(i, j, false);
-                }
-            },
-            Either3::Second(cmd) => match cmd {
+        match select(ANIM_CHANNEL.receive(), ticker.next()).await {
+            Either::First(cmd) => match cmd {
                 AnimCommand::Next => {
                     let new_anim = anim.next_animation();
                     if SIDE_CHANNEL.is_full() {
@@ -159,7 +146,7 @@ pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS, AnyChannel>, is_
                     anim.restore_animation();
                 }
             },
-            Either3::Third(_) => {
+            Either::Second(_) => {
                 let data = anim.tick();
                 ws2812.write(data).await;
             }
