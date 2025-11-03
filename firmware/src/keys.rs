@@ -45,14 +45,14 @@ impl<'a> Matrix<'a> {
         let mut matrix_state = [[false; COLS]; ROWS];
         for (c, col) in self.cols.iter_mut().enumerate() {
             col.set_low();
-            cortex_m::asm::delay(100);
+            cortex_m::asm::delay(150);
             for (r, row) in self.rows.iter().enumerate() {
                 if row.is_low() {
                     matrix_state[r][c] = true;
                 }
             }
             col.set_high();
-            cortex_m::asm::delay(50);
+            cortex_m::asm::delay(100);
         }
         matrix_state
     }
