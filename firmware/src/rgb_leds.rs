@@ -113,7 +113,7 @@ impl<'d, P: Instance, const S: usize, const N: usize, DMA: DmaChannel> Ws2812<'d
 }
 
 #[embassy_executor::task]
-pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS, AnyChannel>, is_right: bool) {
+pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS, AnyChannel>) {
     // Loop forever making RGB values and pushing them out to the WS2812.
     let mut ticker = Ticker::every(Duration::from_hz(24));
 
@@ -161,9 +161,8 @@ pub fn init(
     sm0: StateMachine<'static, PIO0, 0>,
     dma: Peri<'static, AnyChannel>,
     pin: Peri<'static, impl PioPin>,
-    is_right: bool,
 ) {
     let ws2812 = Ws2812::new(&mut common, sm0, dma, pin);
 
-    spawner.must_spawn(run(ws2812, is_right));
+    spawner.must_spawn(run(ws2812));
 }

@@ -195,8 +195,8 @@ impl<'a> HidRequestHandler<'a> {
 }
 
 impl RequestHandler for HidRequestHandler<'_> {
-    fn get_report(&mut self, id: ReportId, _buf: &mut [u8]) -> Option<usize> {
-        info!("Get report for {:?}", id);
+    fn get_report(&mut self, _id: ReportId, _buf: &mut [u8]) -> Option<usize> {
+        info!("Get report for {:?}", _id);
         None
     }
 
@@ -209,12 +209,12 @@ impl RequestHandler for HidRequestHandler<'_> {
         OutResponse::Accepted
     }
 
-    fn set_idle_ms(&mut self, id: Option<ReportId>, dur: u32) {
-        info!("Set idle rate for {:?} to {:?}", id, dur);
+    fn set_idle_ms(&mut self, _id: Option<ReportId>, _dur: u32) {
+        info!("Set idle rate for {:?} to {:?}", _id, _dur);
     }
 
-    fn get_idle_ms(&mut self, id: Option<ReportId>) -> Option<u32> {
-        info!("Get idle rate for {:?}", id);
+    fn get_idle_ms(&mut self, _id: Option<ReportId>) -> Option<u32> {
+        info!("Get idle rate for {:?}", _id);
         None
     }
 }
@@ -274,7 +274,7 @@ pub async fn hid_kb_writer_handler(mut writer: HidWriter<'static, 'static>) {
             let raw = hid_report.serialize();
             match writer.write(&raw).await {
                 Ok(()) => {}
-                Err(e) => warn!("Failed to send report: {:?}", e),
+                Err(_e) => warn!("Failed to send report: {:?}", _e),
             }
         }
     }

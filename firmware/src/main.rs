@@ -215,7 +215,6 @@ async fn main(spawner: Spawner) {
         p.PIN_0,
         #[cfg(feature = "dilemma")]
         p.PIN_10,
-        is_right,
     );
 
     let core = Core::new(hid_mouse);

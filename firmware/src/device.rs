@@ -42,9 +42,9 @@ impl Handler for DeviceHandler {
         info!("Bus reset, the Vbus current limit is 100mA");
     }
 
-    fn addressed(&mut self, addr: u8) {
+    fn addressed(&mut self, _addr: u8) {
         CONFIGURED.store(false, Ordering::Relaxed);
-        info!("USB address set to: {}", addr);
+        info!("USB address set to: {}", _addr);
     }
 
     fn configured(&mut self, configured: bool) {
