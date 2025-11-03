@@ -18,7 +18,9 @@ use embassy_rp::{
 use embassy_time::Instant;
 use embassy_time::{Duration, Ticker};
 use fixed::{traits::ToFixed, types::U56F8};
-use utils::log::{error, info, warn};
+#[cfg(feature = "defmt")]
+use utils::log::error;
+use utils::log::{info, warn};
 
 #[cfg(not(feature = "defmt"))]
 use panic_halt as _;

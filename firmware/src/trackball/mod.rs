@@ -9,7 +9,7 @@ use embassy_rp::spi::{Async, Error as SpiError, Instance as SpiInstance, Mode, S
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_hal::spi::SpiBus;
-use utils::log::{error, info, Debug2Format};
+use utils::log::{error, info};
 
 mod firmware;
 
@@ -74,8 +74,8 @@ pub type TrackballDev = Trackball<'static, SPI0, Async>;
 #[embassy_executor::task]
 pub async fn run(mut ball: TrackballDev) {
     let res = ball.start().await;
-    if let Err(e) = res {
-        error!("Error: {:?}", Debug2Format(&e));
+    if let Err(_e) = res {
+        error!("Error: {:?}", utils::log::Debug2Format(&_e));
     }
     ball.run().await;
 }
@@ -311,8 +311,8 @@ impl<'a, I: SpiInstance, M: Mode> Trackball<'a, I, M> {
                             self.last_dx = burst.dx;
                             self.last_dy = burst.dy;
                         }
-                    } else if let Err(e) = burst_res {
-                        error!("Error: {:?}", Debug2Format(&e));
+                    } else if let Err(_e) = burst_res {
+                        error!("Error: {:?}", utils::log::Debug2Format(&_e));
                     }
                 }
                 Either::Second(event) => match event {
