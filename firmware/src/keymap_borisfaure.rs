@@ -354,7 +354,7 @@ pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEv
 [  Q         {HT_W_W}   F          P         {HT_4_B}    {HT_4_K}   L         U  {HT_W_Y}     ;        ],
 [ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E  {HT_4_I}    {HT_C_O}  ],
 [ {HT_S_Z}   {HT_A_X}   C          D         {HT_3_V}    {HT_3_J}   H         ,  {HT_A_DOT}  {HT_S_SL} ],
-[ {VCAPS}    {VNUM}    {HT_3_ESC} {HT_1_SP}   Tab         Enter    {HT_2_BS}  n   {WHUP}      {WHDN}   ],
+[ {VCAPS}    {VNUM}    {HT_3_ESC} {HT_1_SP}   Tab         Enter    {HT_2_BS} {MWC}   {WHUP}   {WHDN}   ],
     } { /* 1: LOWER */
         [ !  #  $    '(' ')'        ^  &  {S_INS}    *      ~   ],
         [ =  -  '`'  '{' '}'        n  n   PgUp    PgDown  '\\' ],

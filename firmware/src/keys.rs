@@ -92,6 +92,8 @@ async fn matrix_scanner(
                             1 => (3, 5),
                             #[cfg(feature = "cnano")]
                             2 => (3, 6),
+                            #[cfg(feature = "dilemma")]
+                            2 => (3, 7),
                             _ => panic!("Invalid key {:?}", (r, c)),
                         }
                     } else {
