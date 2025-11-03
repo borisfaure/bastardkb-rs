@@ -160,7 +160,7 @@ async fn matrix_scanner(
                 if LAYOUT_CHANNEL.is_full() {
                     error!("Layout channel is full");
                 }
-                if current_b != current_a {
+                if current_b == current_a {
                     LAYOUT_CHANNEL.send(KBEvent::Press(3, 8)).await;
                     LAYOUT_CHANNEL.send(KBEvent::Release(3, 8)).await;
                 } else {
