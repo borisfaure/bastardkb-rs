@@ -321,14 +321,14 @@ const BIW: Action<CustomEvent> = Action::Custom(BallIsWheel);
 
 /// Increase CPI
 #[cfg(feature = "cnano")]
-const MINC: Action<CustomEvent> = Action::Custom(IncreaseCpi);
+const M1: Action<CustomEvent> = Action::Custom(IncreaseCpi);
 #[cfg(feature = "dilemma")]
-const MINC: Action<CustomEvent> = Action::NoOp;
+const M1: Action<CustomEvent> = Action::Custom(MouseWheelClick);
 /// Decrease CPI
 #[cfg(feature = "cnano")]
-const MDEC: Action<CustomEvent> = Action::Custom(DecreaseCpi);
+const M2: Action<CustomEvent> = Action::Custom(DecreaseCpi);
 #[cfg(feature = "dilemma")]
-const MDEC: Action<CustomEvent> = Action::NoOp;
+const M2: Action<CustomEvent> = Action::Custom(MouseWheelClick);
 
 /// Wheel up
 #[cfg(feature = "cnano")]
@@ -371,9 +371,9 @@ pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEv
         [ ,  7  8  9  +                       +  F9  F10  F11  F12 ],
         [ n {VUNNUM} {UNNUM} {HT_1_SP} Tab  Enter {HT_2_BS} n n n  ],
     } { /* 4: MISC or Mouse */
-        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       {MINC} {MWC}   n   n   n  ],
-        [ {RGB}  VolDown          Mute         VolUp         n        n     {BIW} {MLC} n {MRC}],
-        [ {RST} MediaPreviousSong MediaPlayPause MediaNextSong n     {MDEC} {MWC}   n   n {RST}],
+        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       {M1}   {MWC}   n   n   n  ],
+        [ {RGB}  VolDown          Mute         VolUp         n       {MWC}  {BIW} {MLC} n {MRC}],
+        [ {RST} MediaPreviousSong MediaPlayPause MediaNextSong n     {M2}   {MWC}   n   n {RST}],
         [  n     n                {MLC}        {MWC}      {MRC}      {MLC}  {MRC}   n VolUp VolDown],
     } { /* 5: TMUX */
         [ {T_6}   {T_7} {T_8}   {T_9}   {T_0}      {T_1}   {T_2}  {T_3}   {T_4}   {T_5}   ],
