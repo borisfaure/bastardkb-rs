@@ -72,10 +72,6 @@ pub enum CustomEvent {
 /// amount of time, it will be considered inactive.
 const AUTO_MOUSE_TIMEOUT: usize = 1000;
 
-/// Delay in ticks before sending a left or right click in auto mouse mode.
-/// If the other button is pressed during this delay, a middle click is sent instead.
-const AUTO_MOUSE_CLICK_DELAY: usize = 5;
-
 /// Check if the key event is a left click
 fn event_is_left_click(i: u8, j: u8) -> bool {
     i == 3 && j == 5
@@ -100,16 +96,12 @@ pub struct Core<'a> {
     /// Timeout for the automouse feature. When this is non-zero, the mouse
     /// will be considered active. Goes down to 0 every tick.
     auto_mouse_timeout: usize,
-    /// Need to filter next left click release
-    filter_left_button_release: bool,
-    /// Need to filter next right click release
-    filter_right_button_release: bool,
     /// Current color layer
     color_layer: u8,
-    /// Pending left click: counts down to 0, then sends the click
-    pending_left_click: usize,
-    /// Pending right click: counts down to 0, then sends the click
-    pending_right_click: usize,
+    /// Pending left click
+    pending_left_click: bool,
+    /// Pending right click
+    pending_right_click: bool,
 }
 
 impl<'a> Core<'a> {
@@ -122,11 +114,9 @@ impl<'a> Core<'a> {
             mouse: MouseHandler::new(),
             hid_mouse_writer,
             auto_mouse_timeout: 0,
-            filter_left_button_release: false,
-            filter_right_button_release: false,
             color_layer: 0,
-            pending_left_click: 0,
-            pending_right_click: 0,
+            pending_left_click: false,
+            pending_right_click: false,
         }
     }
 
@@ -165,109 +155,44 @@ impl<'a> Core<'a> {
         let (i, j) = event.coord();
         let is_press = event.is_press();
         info!(
-            "Key event: {:?} {:?} auto_mouse_timeout: {}, filter_left_button_release: {}, filter_right_button_release: {}, pending_left: {}, pending_right: {}",
-            is_press,
+            "Key event: {:?} {:?} auto_mouse_timeout: {}, pending_left: {}, pending_right: {}",
+            if is_press { "Press" } else { "Release" },
             (i, j),
             self.auto_mouse_timeout,
-            self.filter_left_button_release,
-            self.filter_right_button_release,
             self.pending_left_click,
-            self.pending_right_click
+            self.pending_right_click,
         );
-        if self.auto_mouse_timeout > 0 {
-            if event_is_left_click(i, j) {
-                if is_press {
-                    // Left click pressed
-                    if self.pending_right_click > 0 {
-                        // Right click is pending, send middle click instead
-                        info!("Sending middle click (left pressed while right pending)");
-                        self.mouse.on_middle_click(true);
-                        self.pending_right_click = 0;
-                        self.filter_left_button_release = true;
-                        self.filter_right_button_release = true;
-                    } else {
-                        // Start pending left click
-                        self.pending_left_click = AUTO_MOUSE_CLICK_DELAY;
-                        self.filter_left_button_release = true;
-                    }
-                    self.on_mouse_active().await;
-                } else {
-                    // Left click released
-                    if self.pending_left_click > 0 {
-                        // Release before delay expired, cancel pending click
-                        self.pending_left_click = 0;
-                    } else {
-                        // Release actual left click
-                        self.mouse.on_left_click(false);
-                    }
-                    // Release middle click if it was pressed
-                    self.mouse.on_middle_click(false);
-                }
-            } else if event_is_right_click(i, j) {
-                if is_press {
-                    // Right click pressed
-                    if self.pending_left_click > 0 {
-                        // Left click is pending, send middle click instead
-                        info!("Sending middle click (right pressed while left pending)");
-                        self.mouse.on_middle_click(true);
-                        self.pending_left_click = 0;
-                        self.filter_left_button_release = true;
-                        self.filter_right_button_release = true;
-                    } else {
-                        // Start pending right click
-                        self.pending_right_click = AUTO_MOUSE_CLICK_DELAY;
-                        self.filter_right_button_release = true;
-                    }
-                    self.on_mouse_active().await;
-                } else {
-                    // Right click released
-                    if self.pending_right_click > 0 {
-                        // Release before delay expired, cancel pending click
-                        self.pending_right_click = 0;
-                    } else {
-                        // Release actual right click
-                        self.mouse.on_right_click(false);
-                    }
-                    // Release middle click if it was pressed
-                    self.mouse.on_middle_click(false);
-                }
-            } else {
-                // Not a mouse event, process it as a keyboard event
-                // and consider the mouse as inactive
-                self.auto_mouse_timeout = 0;
-                self.pending_left_click = 0;
-                self.pending_right_click = 0;
-                self.layout.event(event);
-            }
-        } else if self.filter_left_button_release && !is_press && event_is_left_click(i, j) {
-            self.filter_left_button_release = false;
-        } else if self.filter_right_button_release && !is_press && event_is_right_click(i, j) {
-            self.filter_right_button_release = false;
-        } else {
-            self.layout.event(event);
+        let is_left_click = event_is_left_click(i, j);
+        let is_right_click = event_is_right_click(i, j);
+        if !is_press && is_left_click && self.pending_left_click {
+            self.mouse.on_left_click(false);
+            self.pending_left_click = false;
+            return;
         }
+        if !is_press && is_right_click && self.pending_right_click {
+            self.mouse.on_right_click(false);
+            self.pending_right_click = false;
+            return;
+        }
+        if self.auto_mouse_timeout > 0 {
+            if is_left_click && is_press {
+                self.mouse.on_left_click(true);
+                self.on_mouse_active().await;
+                self.pending_left_click = true;
+                return;
+            }
+            if is_right_click && is_press {
+                self.mouse.on_right_click(true);
+                self.on_mouse_active().await;
+                self.pending_right_click = true;
+                return;
+            }
+        }
+        self.layout.event(event);
     }
 
     /// Process the state of the keyboard and mouse
     async fn tick(&mut self) {
-        // Process pending click timeouts
-        if self.pending_left_click > 0 {
-            self.pending_left_click -= 1;
-            if self.pending_left_click == 0 {
-                // Delay expired, send the left click
-                info!("Sending delayed left click");
-                self.mouse.on_left_click(true);
-            }
-        }
-        if self.pending_right_click > 0 {
-            self.pending_right_click -= 1;
-            if self.pending_right_click == 0 {
-                // Delay expired, send the right click
-                info!("Sending delayed right click");
-                self.mouse.on_right_click(true);
-            }
-        }
-
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
             let raw = mouse_report.serialize();
@@ -281,7 +206,8 @@ impl<'a> Core<'a> {
         }
         if self.auto_mouse_timeout > 0 {
             self.auto_mouse_timeout -= 1;
-            if self.auto_mouse_timeout == 0 {
+            if self.auto_mouse_timeout == 0 && !self.pending_left_click && !self.pending_right_click
+            {
                 self.on_mouse_inactive().await;
             }
         }
