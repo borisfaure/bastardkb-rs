@@ -194,6 +194,7 @@ async fn main(_spawner: Spawner) {
         let mut max_rtt_us: u64 = 0;
         #[cfg(feature = "defmt")]
         let mut min_rtt_us: u64 = u64::MAX;
+        #[allow(unused_assignments)]
         #[cfg(feature = "defmt")]
         let mut rtt_us: u64 = 0;
 
@@ -248,7 +249,7 @@ async fn main(_spawner: Spawner) {
             {
                 iterations += 1;
                 // Report every 5000 exchanges
-                if iterations % 5000 == 0 {
+                if iterations.is_multiple_of(5000) {
                     let avg_rtt_us = total_rtt_us / (iterations as u64);
                     info!(
                         "=== #{}: index={}, errors={}, RTT: avg={}µs min={}µs max={}µs ===",
