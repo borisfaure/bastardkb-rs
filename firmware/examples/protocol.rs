@@ -107,21 +107,12 @@ async fn hardware_task(mut sm: SmCompound<'static>) {
         loop_count += 1;
 
         // Print heartbeat every 5000ms
-        if loop_count % 5000 == 0 {
+        if loop_count.is_multiple_of(5000) {
             info!("HW task heartbeat: {} iterations", loop_count);
         }
 
         // ALWAYS send something to maintain 1ms timing
-        let msg_to_send = match HW_TX_QUEUE.try_receive() {
-            Ok(msg) => {
-                // Send queued message from protocol layer
-                msg
-            }
-            Err(_) => {
-                // No message queued, send keepalive (0x00000000)
-                0x00000000
-            }
-        };
+        let msg_to_send = HW_TX_QUEUE.try_receive().unwrap_or_default();
 
         // Send via PIO
         sm.tx().wait_push(msg_to_send).await;
@@ -206,7 +197,7 @@ impl<'a, W: Sized + Hardware> SidesComms<'a, W> {
             loop_count += 1;
 
             // Print heartbeat every 1000ms
-            if loop_count % 1000 == 0 {
+            if loop_count.is_multiple_of(1000) {
                 info!("Heartbeat: {} iterations", loop_count);
             }
 
@@ -408,10 +399,13 @@ async fn main(spawner: Spawner) {
     let mut status_led = Output::new(p.PIN_17, Level::Low);
     let is_right = Input::new(p.PIN_29, Pull::Up).is_high();
 
-    if is_right {
-        info!("=== RIGHT SIDE (Master) ===");
-    } else {
-        info!("=== LEFT SIDE (Slave) ===");
+    #[cfg(feature = "defmt")]
+    {
+        if is_right {
+            info!("=== RIGHT SIDE (Master) ===");
+        } else {
+            info!("=== LEFT SIDE (Slave) ===");
+        }
     }
 
     let pp_fut = ping_pong(
