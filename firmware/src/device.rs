@@ -28,9 +28,10 @@ impl DeviceHandler {
 }
 
 impl Handler for DeviceHandler {
-    fn enabled(&mut self, enabled: bool) {
+    fn enabled(&mut self, _enabled: bool) {
         CONFIGURED.store(false, Ordering::Relaxed);
-        if enabled {
+        #[cfg(feature = "defmt")]
+        if _enabled {
             info!("Device enabled");
         } else {
             info!("Device disabled");
@@ -49,6 +50,7 @@ impl Handler for DeviceHandler {
 
     fn configured(&mut self, configured: bool) {
         CONFIGURED.store(configured, Ordering::Relaxed);
+        #[cfg(feature = "defmt")]
         if configured {
             info!(
                 "Device configured, it may now draw up to the configured current limit from Vbus."
