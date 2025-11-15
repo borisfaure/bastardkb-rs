@@ -15,20 +15,19 @@ use embassy_usb::class::hid::HidWriter;
 use keyberon::key_code::KeyCode;
 use keyberon::layout::{CustomEvent as KbCustomEvent, Event as KBEvent, Layout};
 use utils::log::{error, info};
-use utils::rgb_anims::MOUSE_COLOR_INDEX;
 use utils::serde::Event;
 
 /// Basic layout for the keyboard
 #[cfg(feature = "keymap_basic")]
-use crate::keymap_basic::{KBLayout, LAYERS};
+use crate::keymap_basic::{KBLayout, LAYERS, VIRTUAL_MOUSE_KEY};
 
 /// Keymap by Boris Faure
 #[cfg(feature = "keymap_borisfaure")]
-use crate::keymap_borisfaure::{KBLayout, LAYERS};
+use crate::keymap_borisfaure::{KBLayout, LAYERS, VIRTUAL_MOUSE_KEY};
 
 /// Test layout for the keyboard
 #[cfg(feature = "keymap_test")]
-use crate::keymap_test::{KBLayout, LAYERS};
+use crate::keymap_test::{KBLayout, LAYERS, VIRTUAL_MOUSE_KEY};
 
 /// Layout refresh rate, in ms
 const REFRESH_RATE_MS: u64 = 1;
@@ -72,15 +71,6 @@ pub enum CustomEvent {
 /// amount of time, it will be considered inactive.
 const AUTO_MOUSE_TIMEOUT: usize = 1000;
 
-/// Check if the key event is a left click
-fn event_is_left_click(i: u8, j: u8) -> bool {
-    i == 3 && j == 5
-}
-/// Check if the key event is a right click
-fn event_is_right_click(i: u8, j: u8) -> bool {
-    i == 3 && j == 6
-}
-
 /// Core keyboard/mouse handler
 pub struct Core<'a> {
     /// Keyboard layout
@@ -98,10 +88,8 @@ pub struct Core<'a> {
     auto_mouse_timeout: usize,
     /// Current color layer
     color_layer: u8,
-    /// Pending left click
-    pending_left_click: bool,
-    /// Pending right click
-    pending_right_click: bool,
+    /// Pending mouse clicks
+    pending_mouse_clicks: bool,
 }
 
 impl<'a> Core<'a> {
@@ -115,8 +103,7 @@ impl<'a> Core<'a> {
             hid_mouse_writer,
             auto_mouse_timeout: 0,
             color_layer: 0,
-            pending_left_click: false,
-            pending_right_click: false,
+            pending_mouse_clicks: false,
         }
     }
 
@@ -136,58 +123,34 @@ impl<'a> Core<'a> {
         }
     }
 
+    /// Return whether the mouse is active
+    fn is_mouse_active(&self) -> bool {
+        self.auto_mouse_timeout > 0 || self.pending_mouse_clicks
+    }
+
     /// (Re)Set mouse active timeout
     /// Also set the leds to the mouse active color
     async fn on_mouse_active(&mut self) {
-        self.auto_mouse_timeout = AUTO_MOUSE_TIMEOUT;
-        self.set_color_layer(MOUSE_COLOR_INDEX).await;
+        if !self.is_mouse_active() {
+            info!("Set Mouse Active");
+            self.layout
+                .event(KBEvent::Press(VIRTUAL_MOUSE_KEY.0, VIRTUAL_MOUSE_KEY.1));
+            self.auto_mouse_timeout = AUTO_MOUSE_TIMEOUT;
+        }
     }
 
     /// When the mouse becomes inactive, reset the leds to the current layer
     /// color
     async fn on_mouse_inactive(&mut self) {
-        info!("Mouse inactive");
-        self.set_color_layer(self.current_layer as u8).await;
+        if self.is_mouse_active() {
+            info!("Set Mouse Inactive");
+            self.layout
+                .event(KBEvent::Release(VIRTUAL_MOUSE_KEY.0, VIRTUAL_MOUSE_KEY.1));
+        }
     }
 
     /// Process a key event
     async fn on_key_event(&mut self, event: KBEvent) {
-        let (i, j) = event.coord();
-        let is_press = event.is_press();
-        info!(
-            "Key event: {:?} {:?} auto_mouse_timeout: {}, pending_left: {}, pending_right: {}",
-            if is_press { "Press" } else { "Release" },
-            (i, j),
-            self.auto_mouse_timeout,
-            self.pending_left_click,
-            self.pending_right_click,
-        );
-        let is_left_click = event_is_left_click(i, j);
-        let is_right_click = event_is_right_click(i, j);
-        if !is_press && is_left_click && self.pending_left_click {
-            self.mouse.on_left_click(false);
-            self.pending_left_click = false;
-            return;
-        }
-        if !is_press && is_right_click && self.pending_right_click {
-            self.mouse.on_right_click(false);
-            self.pending_right_click = false;
-            return;
-        }
-        if self.auto_mouse_timeout > 0 {
-            if is_left_click && is_press {
-                self.mouse.on_left_click(true);
-                self.on_mouse_active().await;
-                self.pending_left_click = true;
-                return;
-            }
-            if is_right_click && is_press {
-                self.mouse.on_right_click(true);
-                self.on_mouse_active().await;
-                self.pending_right_click = true;
-                return;
-            }
-        }
         self.layout.event(event);
     }
 
@@ -195,6 +158,7 @@ impl<'a> Core<'a> {
     async fn tick(&mut self) {
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
+            self.pending_mouse_clicks = mouse_report.buttons != 0;
             let raw = mouse_report.serialize();
             #[cfg(feature = "defmt")]
             if let Err(e) = self.hid_mouse_writer.write(&raw).await {
@@ -206,8 +170,7 @@ impl<'a> Core<'a> {
         }
         if self.auto_mouse_timeout > 0 {
             self.auto_mouse_timeout -= 1;
-            if self.auto_mouse_timeout == 0 && !self.pending_left_click && !self.pending_right_click
-            {
+            if !self.is_mouse_active() {
                 self.on_mouse_inactive().await;
             }
         }

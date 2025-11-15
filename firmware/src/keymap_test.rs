@@ -62,6 +62,9 @@ const WHDN: Action<CustomEvent> = Action::NoOp;
 #[cfg(feature = "dilemma")]
 const WHDN: Action<CustomEvent> = Action::Custom(WheelDown);
 
+// Virtual mouse key row/col
+pub const VIRTUAL_MOUSE_KEY: (u8, u8) = (3, 0);
+
 #[rustfmt::skip]
 /// Layout
 pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEvent> = keyberon::layout::layout! {

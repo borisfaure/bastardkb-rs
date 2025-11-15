@@ -43,6 +43,9 @@ const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
 /// Reset to USB Mass Storage
 const RST: Action<CustomEvent> = Action::Custom(ResetToUsbMassStorage);
 
+// Virtual mouse key row/col
+pub const VIRTUAL_MOUSE_KEY: (u8, u8) = (3, 0);
+
 #[rustfmt::skip]
 /// Layout
 pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEvent> = keyberon::layout::layout! {
