@@ -353,7 +353,7 @@ const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
 const RST: Action<CustomEvent> = Action::Custom(ResetToUsbMassStorage);
 
 /// Change layer to MOUSE
-const MSE: Action<CustomEvent> = d(L_MOUSE);
+const MSE: Action<CustomEvent> = l(L_MOUSE);
 /// Virtual mouse key row/col
 pub const VIRTUAL_MOUSE_KEY: (u8, u8) = (0, (COLS - 1) as u8);
 
