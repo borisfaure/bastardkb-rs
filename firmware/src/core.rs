@@ -88,8 +88,8 @@ pub struct Core<'a> {
     auto_mouse_timeout: usize,
     /// Current color layer
     color_layer: u8,
-    /// Pending mouse clicks
-    pending_mouse_clicks: bool,
+    /// Is mouse active
+    mouse_active: bool,
 }
 
 impl<'a> Core<'a> {
@@ -103,7 +103,7 @@ impl<'a> Core<'a> {
             hid_mouse_writer,
             auto_mouse_timeout: 0,
             color_layer: 0,
-            pending_mouse_clicks: false,
+            mouse_active: false,
         }
     }
 
@@ -123,15 +123,11 @@ impl<'a> Core<'a> {
         }
     }
 
-    /// Return whether the mouse is active
-    fn is_mouse_active(&self) -> bool {
-        self.auto_mouse_timeout > 0 || self.pending_mouse_clicks
-    }
-
     /// (Re)Set mouse active timeout
     /// Also set the leds to the mouse active color
     async fn on_mouse_active(&mut self) {
-        if !self.is_mouse_active() {
+        if !self.mouse_active {
+            self.mouse_active = true;
             info!("Set Mouse Active");
             self.layout
                 .event(KBEvent::Press(VIRTUAL_MOUSE_KEY.0, VIRTUAL_MOUSE_KEY.1));
@@ -142,7 +138,9 @@ impl<'a> Core<'a> {
     /// When the mouse becomes inactive, reset the leds to the current layer
     /// color
     async fn on_mouse_inactive(&mut self) {
-        if self.is_mouse_active() {
+        info!("On Mouse Inactive");
+        if self.mouse_active {
+            self.mouse_active = false;
             info!("Set Mouse Inactive");
             self.layout
                 .event(KBEvent::Release(VIRTUAL_MOUSE_KEY.0, VIRTUAL_MOUSE_KEY.1));
@@ -158,19 +156,25 @@ impl<'a> Core<'a> {
     async fn tick(&mut self) {
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
-            self.pending_mouse_clicks = mouse_report.buttons != 0;
+            let pending_mouse_clicks = mouse_report.buttons != 0;
+            if pending_mouse_clicks {
+                self.auto_mouse_timeout = AUTO_MOUSE_TIMEOUT;
+            }
+
+            let mouse_moved = mouse_report.x != 0 || mouse_report.y != 0 || mouse_report.wheel != 0;
             let raw = mouse_report.serialize();
             #[cfg(feature = "defmt")]
             if let Err(e) = self.hid_mouse_writer.write(&raw).await {
                 error!("Failed to send mouse report: {:?}", e);
             }
-            #[cfg(not(feature = "defmt"))]
             let _ = self.hid_mouse_writer.write(&raw).await;
-            self.on_mouse_active().await;
+            if mouse_moved || pending_mouse_clicks {
+                self.on_mouse_active().await;
+            }
         }
         if self.auto_mouse_timeout > 0 {
             self.auto_mouse_timeout -= 1;
-            if !self.is_mouse_active() {
+            if self.auto_mouse_timeout == 0 {
                 self.on_mouse_inactive().await;
             }
         }
