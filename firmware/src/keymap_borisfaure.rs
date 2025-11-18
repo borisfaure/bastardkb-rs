@@ -9,7 +9,7 @@ use keyberon::key_code::KeyCode::*;
 use keyberon::layout::Layout;
 
 /// Number of layers
-pub const NB_LAYERS: usize = 9;
+pub const NB_LAYERS: usize = 10;
 
 /// Total number of columns, including the split and the virtual column
 pub const COLS: usize = FULL_COLS + 1;
@@ -45,8 +45,6 @@ const L_RAISE: usize = 2;
 const L_NUM: usize = 3;
 /// MISC layer
 const L_MISC: usize = 4;
-/// MOUSE layer
-const L_MOUSE: usize = 4;
 /// TMUX layer
 const L_TMUX: usize = 5;
 /// GAMING layer
@@ -55,6 +53,8 @@ const L_GAMING: usize = 6;
 const L_CAPS: usize = 7;
 /// QWERTY layer
 const L_QWERTY: usize = 8;
+/// MOUSE layer
+const L_MOUSE: usize = 9;
 
 /// Win when held, or W
 const HT_W_W: Action<CustomEvent> = ht!(k(LGui), k(W));
@@ -364,12 +364,12 @@ pub static LAYERS: keyberon::layout::Layers<COLS, ROWS, NB_LAYERS, CustomEvent> 
 [  Q         {HT_W_W}   F          P         {HT_4_B}    {HT_4_K}   L         U  {HT_W_Y}     ;        {MSE}],
 [ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E  {HT_4_I}    {HT_C_O}  n],
 [ {HT_S_Z}   {HT_A_X}   C          D         {HT_3_V}    {HT_3_J}   H         ,  {HT_A_DOT}  {HT_S_SL} n],
-[ {VCAPS}    {VNUM}    {HT_3_ESC} {HT_1_SP}   Tab         Enter    {HT_2_BS} {MWC}   {WHUP}   {WHDN}   n],
+[ {VCAPS}    {VNUM}    {HT_3_ESC} {HT_1_SP}   Tab         Enter    {HT_2_BS} {MWC}   {WHDN}   {WHUP}   n],
     } { /* 1: LOWER */
-        [ !  #  $    '(' ')'        ^  &  {S_INS}    *      ~   t],
-        [ =  -  '`'  '{' '}'        n  n   PgUp    PgDown  '\\' n],
-        [ @  &  %    '[' ']'        n  n     n      '\''    '"' n],
-        [ n  n  t     t   t         Enter Space  n   n      n   n],
+        [ !  #  $    '(' ')'        ^  &  {S_INS}    *      ~    t],
+        [ =  -  '`'  '{' '}'        n  n   PgUp    PgDown  '\\'  n],
+        [ @  &  %    '[' ']'        n  n     n      '\''    '"'  n],
+        [ n  n  t     t   t         Enter Space  n VolUp VolDown n],
     } { /* 2: RAISE */
         [ {QWERTY}  n    {E_ACU}  {E_CIR}  {E_GRV}      PgUp   {U_GRV}  {I_CIR}  {O_CIR}  Home  t],
         [ {A_GRV}  '_'    +        &        |           RAlt    Left     Up       Down    Right n],
@@ -380,11 +380,11 @@ pub static LAYERS: keyberon::layout::Layers<COLS, ROWS, NB_LAYERS, CustomEvent> 
         [ 0  1  2  3  -                       *  F5  F6   F7   F8  n],
         [ ,  7  8  9  +                       +  F9  F10  F11  F12 n],
         [ n {VUNNUM} {UNNUM} {HT_1_SP} Tab  Enter {HT_2_BS} n n n  n],
-    } { /* 4: MISC or Mouse */
-        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       {M1}   {MWC}   n   n   n       t],
-        [ {RGB}  VolDown          Mute         VolUp         n       {MWC}  {BIW} {MLC} n {MRC}     n],
-        [ {RST} MediaPreviousSong MediaPlayPause MediaNextSong n     {M2}   {MWC}   n   n {RST}     n],
-        [  n     n                {MLC}        {MWC}      {MRC}      {MLC}  {MRC}   n VolUp VolDown n],
+    } { /* 4: MISC */
+        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       {M1}   {MWC}   n   n   n         t],
+        [ {RGB}  VolDown          Mute         VolUp         n       {MWC}  {BIW} {MLC} n {MRC}       n],
+        [ {RST} MediaPreviousSong MediaPlayPause MediaNextSong n     {M2}   {MWC}   n   n {RST}       n],
+        [  n     n                {MLC}        {MWC}      {MRC}      {MLC}  {MRC} {MWC} {WHDN} {WHUP} n],
     } { /* 5: TMUX */
         [ {T_6}   {T_7} {T_8}   {T_9}   {T_0}      {T_1}   {T_2}  {T_3}   {T_4}   {T_5}   t],
         [ {T_LST}  n     n       n       n          n     {T_PRV} {T_UP}  {T_DWN} {T_NXT} n],
@@ -404,6 +404,12 @@ pub static LAYERS: keyberon::layout::Layers<COLS, ROWS, NB_LAYERS, CustomEvent> 
 [  Q        {HT_W_W}   E       R         {HT_4_T}       {HT_4_Y}   U       I  {HT_W_O}     P        t],
 [ {HT_C_A}   S         D      {HT_5_F}    G              H         J       K   L          {HT_C_SC} n],
 [ {HT_S_Z}  {HT_A_X}   C       V         {HT_3_B}       {HT_3_N}   M       ,  {HT_A_DOT}  {HT_S_SL} n],
-[  n         n        Escape  {HT_1_SP}   Tab            Enter  {HT_2_BS}  n   {WHUP}      {WHDN}   n],
+[  n         n        Escape  {HT_1_SP}   Tab            Enter  {HT_2_BS}  n   {WHDN}      {WHUP}   n],
+    }
+    { /* 9: MOUSE */
+        [ n n n n n  {M1}   {MWC}   n   n   n         t],
+        [ n n n n n  {MWC}  {BIW} {MLC} n {MRC}       n],
+        [ n n n n n  {M2}   {MWC}   n   n {RST}       n],
+        [ n n n n n  {MLC}  {MRC} {MWC} {WHDN} {WHUP} n],
     }
 };
