@@ -157,11 +157,9 @@ impl<'a> Core<'a> {
         // Process all mouse events first since they are time sensitive
         while let Some(mouse_report) = self.mouse.tick().await {
             let pending_mouse_clicks = mouse_report.buttons != 0;
-            if pending_mouse_clicks {
-                self.auto_mouse_timeout = AUTO_MOUSE_TIMEOUT;
-            }
-
-            let mouse_moved = mouse_report.x != 0 || mouse_report.y != 0 || mouse_report.wheel != 0;
+            // Don't consider wheel movement as mouse activity since it may
+            // just be scrolling and not actual mouse movement
+            let mouse_moved = mouse_report.x != 0 || mouse_report.y != 0;
             let raw = mouse_report.serialize();
             #[cfg(feature = "defmt")]
             if let Err(e) = self.hid_mouse_writer.write(&raw).await {
@@ -169,6 +167,7 @@ impl<'a> Core<'a> {
             }
             let _ = self.hid_mouse_writer.write(&raw).await;
             if mouse_moved || pending_mouse_clicks {
+                self.auto_mouse_timeout = AUTO_MOUSE_TIMEOUT;
                 self.on_mouse_active().await;
             }
         }
