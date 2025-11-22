@@ -102,13 +102,14 @@ const HT_4_Y: Action<CustomEvent> = ht!(l(L_MISC), k(Y));
 const HT_4_B: Action<CustomEvent> = ht!(l(L_MISC), k(B));
 /// Layer 4 (misc) when held, or K
 const HT_4_K: Action<CustomEvent> = ht!(l(L_MISC), k(K));
-/// Layer 4 (misc) when held, or I
-const HT_4_I: Action<CustomEvent> = ht!(l(L_MISC), k(I));
 
 /// Layer 5 (tmux) when held, or F
 const HT_5_F: Action<CustomEvent> = ht!(l(L_TMUX), k(F));
 /// Layer 5 (tmux) when held, or T
 const HT_5_T: Action<CustomEvent> = ht!(l(L_TMUX), k(T));
+
+/// Layer 9 (mouse) when held, or I
+const HT_9_I: Action<CustomEvent> = ht!(l(L_MOUSE), k(I));
 
 /// Shift-Insert
 const S_INS: Action<CustomEvent> = m(&[LShift, Insert].as_slice());
@@ -354,15 +355,19 @@ const RST: Action<CustomEvent> = Action::Custom(ResetToUsbMassStorage);
 
 /// Change layer to MOUSE
 const MSE: Action<CustomEvent> = l(L_MOUSE);
+
 /// Virtual mouse key row/col
 pub const VIRTUAL_MOUSE_KEY: (u8, u8) = (0, (COLS - 1) as u8);
+
+/// No mouse action
+const NOM: Action<CustomEvent> = Action::Custom(NoMouseAction);
 
 #[rustfmt::skip]
 /// Layout
 pub static LAYERS: keyberon::layout::Layers<COLS, ROWS, NB_LAYERS, CustomEvent> = keyberon::layout::layout! {
    { /* 0: Coleman-DH */
 [  Q         {HT_W_W}   F          P         {HT_4_B}    {HT_4_K}   L         U  {HT_W_Y}     ;        {MSE}],
-[ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E  {HT_4_I}    {HT_C_O}  n],
+[ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E  {HT_9_I}    {HT_C_O}  n],
 [ {HT_S_Z}   {HT_A_X}   C          D         {HT_3_V}    {HT_3_J}   H         ,  {HT_A_DOT}  {HT_S_SL} n],
 [ {VCAPS}    {VNUM}    {HT_3_ESC} {HT_1_SP}   Tab         Enter    {HT_2_BS} {MWC}   {WHDN}   {WHUP}   n],
     } { /* 1: LOWER */
@@ -381,10 +386,10 @@ pub static LAYERS: keyberon::layout::Layers<COLS, ROWS, NB_LAYERS, CustomEvent> 
         [ ,  7  8  9  +                       +  F9  F10  F11  F12 n],
         [ n {VUNNUM} {UNNUM} {HT_1_SP} Tab  Enter {HT_2_BS} n n n  n],
     } { /* 4: MISC */
-        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       {M1}   {MWC}   n   n   n         t],
-        [ {RGB}  VolDown          Mute         VolUp         n       {MWC}  {BIW} {MLC} n {MRC}       n],
-        [ {RST} MediaPreviousSong MediaPlayPause MediaNextSong n     {M2}   {MWC}   n   n {RST}       n],
-        [  n     n                {MLC}        {MWC}      {MRC}      {MLC}  {MRC} {MWC} {WHDN} {WHUP} n],
+        [ Pause  {GAME}           {COLEMAN}    {QWERTY}      n       n n n n   n    t],
+        [ {RGB}  VolDown          Mute         VolUp         n       n n n n   n    n],
+        [ {RST} MediaPreviousSong MediaPlayPause MediaNextSong n     n n n n {RST}  n],
+        [  n     n                {MLC}        {MWC}      {MRC}      MediaPlayPause n MediaPlayPause VolDown VolUp n],
     } { /* 5: TMUX */
         [ {T_6}   {T_7} {T_8}   {T_9}   {T_0}      {T_1}   {T_2}  {T_3}   {T_4}   {T_5}   t],
         [ {T_LST}  n     n       n       n          n     {T_PRV} {T_UP}  {T_DWN} {T_NXT} n],
@@ -407,9 +412,9 @@ pub static LAYERS: keyberon::layout::Layers<COLS, ROWS, NB_LAYERS, CustomEvent> 
 [  n         n        Escape  {HT_1_SP}   Tab            Enter  {HT_2_BS}  n   {WHDN}      {WHUP}   n],
     }
     { /* 9: MOUSE */
-        [ n n n n n  {M1}   {MWC}   n   n   n         t],
-        [ n n n n n  {MWC}  {BIW} {MLC} n {MRC}       n],
-        [ n n n n n  {M2}   {MWC}   n   n {RST}       n],
-        [ n n n n n  {MLC}  {MRC} {MWC} {WHDN} {WHUP} n],
+        [ n n n n n                      {M1}   {MWC}   n   n   n         t],
+        [ n n n n n                      {MWC}  {BIW} {MLC} n {MRC}       n],
+        [ n n n n n                      {M2}   {MWC}   n   n   n         n],
+        [ n n {NOM} {NOM} {NOM}          {MLC}  {MRC} {MWC} {WHDN} {WHUP} n],
     }
 };

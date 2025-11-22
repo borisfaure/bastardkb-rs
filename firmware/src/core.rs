@@ -65,6 +65,8 @@ pub enum CustomEvent {
     /// Wheel down
     #[cfg(feature = "dilemma")]
     WheelDown,
+    /// Stop the automouse feature
+    NoMouseAction,
 }
 
 /// Timeout for the automouse feature: when the mouse is not used for this
@@ -272,6 +274,14 @@ impl<'a> Core<'a> {
                 embassy_rp::rom_data::reset_to_usb_boot(0, 0);
             }
             KbCustomEvent::Release(CustomEvent::ResetToUsbMassStorage) => {}
+
+            KbCustomEvent::Press(CustomEvent::NoMouseAction) => {
+                if self.auto_mouse_timeout != 0 {
+                    self.auto_mouse_timeout = 0;
+                    self.on_mouse_inactive().await;
+                }
+            }
+            KbCustomEvent::Release(CustomEvent::NoMouseAction) => {}
 
             KbCustomEvent::NoEvent => (),
         }
