@@ -2,10 +2,14 @@ use crate::core::LAYOUT_CHANNEL;
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
+#[cfg(feature = "dilemma")]
+use embassy_rp::peripherals::PIN_1;
+#[cfg(feature = "cnano")]
+use embassy_rp::peripherals::PIN_29;
 use embassy_rp::{
     clocks,
     gpio::{Level, Output, Pull},
-    peripherals::{PIN_1, PIO1},
+    peripherals::PIO1,
     pio::{self, program::pio_asm, Direction, ShiftDirection, StateMachine},
     Peri,
 };
@@ -370,11 +374,12 @@ pub async fn init(
     spawner: &Spawner,
     mut pio_common: PioCommon<'static>,
     sm0: SmCompound<'static>,
-    gpio_pin1: Peri<'static, PIN_1>,
+    #[cfg(feature = "cnano")] gpio_pin: Peri<'static, PIN_29>,
+    #[cfg(feature = "dilemma")] gpio_pin: Peri<'static, PIN_1>,
     status_led: Output<'static>,
     is_right: bool,
 ) {
-    let mut pio_pin = pio_common.make_pio_pin(gpio_pin1);
+    let mut pio_pin = pio_common.make_pio_pin(gpio_pin);
     pio_pin.set_pull(Pull::Up);
 
     info!("Side is {}", if is_right { "Right" } else { "Left" });

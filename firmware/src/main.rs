@@ -199,6 +199,9 @@ async fn main(spawner: Spawner) {
         &spawner,
         pio1.common,
         pio1.sm0,
+        #[cfg(feature = "cnano")]
+        p.PIN_29,
+        #[cfg(feature = "dilemma")]
         p.PIN_1,
         status_led,
         is_right,
