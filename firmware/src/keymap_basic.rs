@@ -43,6 +43,9 @@ const RGB: Action<CustomEvent> = Action::Custom(NextLedAnimation);
 /// Reset to USB Mass Storage
 const RST: Action<CustomEvent> = Action::Custom(ResetToUsbMassStorage);
 
+/// No mouse action
+const NOM: Action<CustomEvent> = Action::Custom(NoMouseAction);
+
 // Virtual mouse key row/col
 pub const VIRTUAL_MOUSE_KEY: (u8, u8) = (3, 0);
 
@@ -56,7 +59,7 @@ pub static LAYERS: keyberon::layout::Layers<FULL_COLS, ROWS, NB_LAYERS, CustomEv
         [ n  n  1  2  3      4  5  n  n  n ],
     } { // Unreachable
         [ n  n  n  n  n      n  n  n  n  n ],
-        [ n  n  n  n  n      n  n  n  n  n ],
+        [ {NOM} n n n n      n  n  n  n  n ],
         [ {RST} n n n n      n  n  n  n  n ],
         [ n {BIW} {INC} {DEC} {MLC}      {MRC} {MMC} {RGB} {WHUP} {WHDN} ],
     }
