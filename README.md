@@ -34,7 +34,7 @@ The firmware is based on the [Keyberon library](https://github.com/TeXitoi/keybe
 - Trackball support for the Charybdis Nano keyboard
 - Switch to bootloader mode to easily upgrade firmware by pressing a key combination
 - Right encoder on the Dilemma keyboard
-- Auto-mouse mode: some keys act as mouse keys after the trackball has been
+- Auto-mouse mode: some keys act as mouse keys after the trackball/trackpad has been
   used
 
 ## On CapsLock & NumLock support
