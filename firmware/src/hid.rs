@@ -12,9 +12,14 @@ use utils::log::{error, info, warn};
 const NB_REPORTS: usize = 128;
 /// Channel to send HID keyboard reports to the HID writer
 pub static HID_KB_CHANNEL: Channel<ThreadModeRawMutex, KeyboardReport, NB_REPORTS> = Channel::new();
+/// Channel to send HID consumer control reports to the HID writer
+pub static HID_CONSUMER_CHANNEL: Channel<ThreadModeRawMutex, ConsumerReport, NB_REPORTS> =
+    Channel::new();
 
-/// HID writer type
+/// HID writer type for keyboard (8 bytes)
 pub type HidWriter<'a, 'b> = embassy_usb::class::hid::HidWriter<'a, Driver<'b, USB>, 8>;
+/// HID writer type for consumer control (2 bytes)
+pub type HidConsumerWriter<'a, 'b> = embassy_usb::class::hid::HidWriter<'a, Driver<'b, USB>, 2>;
 
 #[rustfmt::skip]
 /// Keyboard HID report descriptor
@@ -106,6 +111,24 @@ pub const MOUSE_REPORT_DESCRIPTOR: &[u8] = &[
 // 87 bytes
 ];
 
+#[rustfmt::skip]
+/// Consumer Control HID report descriptor
+/// Supports media keys like Play/Pause, Volume Up/Down, Mute, etc.
+pub const CONSUMER_REPORT_DESCRIPTOR: &[u8] = &[
+    0x05, 0x0C,        // Usage Page (Consumer)
+    0x09, 0x01,        // Usage (Consumer Control)
+    0xA1, 0x01,        // Collection (Application)
+    0x19, 0x00,        //   Usage Minimum (0x00)
+    0x2A, 0x3C, 0x02,  //   Usage Maximum (0x023C)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x26, 0x3C, 0x02,  //   Logical Maximum (572)
+    0x95, 0x01,        //   Report Count (1)
+    0x75, 0x10,        //   Report Size (16)
+    0x81, 0x00,        //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              // End Collection
+// 21 bytes
+];
+
 /// Keyboard HID report
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
@@ -171,6 +194,30 @@ impl MouseReport {
             self.wheel as u8,
             self.pan as u8,
         ]
+    }
+}
+
+/// Consumer Control HID report
+/// Used for media keys (Play/Pause, Volume, etc.)
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
+pub struct ConsumerReport {
+    /// Consumer usage code (16-bit)
+    /// Common values:
+    /// - 0x0000: No key pressed (release)
+    /// - 0x00B5: Scan Next Track
+    /// - 0x00B6: Scan Previous Track
+    /// - 0x00CD: Play/Pause
+    /// - 0x00E2: Mute
+    /// - 0x00E9: Volume Up
+    /// - 0x00EA: Volume Down
+    pub usage: u16,
+}
+
+impl ConsumerReport {
+    /// Serialize the report
+    pub fn serialize(&self) -> [u8; 2] {
+        self.usage.to_le_bytes()
     }
 }
 
@@ -275,6 +322,21 @@ pub async fn hid_kb_writer_handler(mut writer: HidWriter<'static, 'static>) {
             match writer.write(&raw).await {
                 Ok(()) => {}
                 Err(_e) => warn!("Failed to send report: {:?}", _e),
+            }
+        }
+    }
+}
+
+/// Loop to read HID ConsumerReport reports from the channel and send them over USB
+#[embassy_executor::task]
+pub async fn hid_consumer_writer_handler(mut writer: HidConsumerWriter<'static, 'static>) {
+    loop {
+        let hid_report = HID_CONSUMER_CHANNEL.receive().await;
+        if is_host() {
+            let raw = hid_report.serialize();
+            match writer.write(&raw).await {
+                Ok(()) => {}
+                Err(_e) => warn!("Failed to send consumer report: {:?}", _e),
             }
         }
     }

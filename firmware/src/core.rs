@@ -1,4 +1,4 @@
-use crate::hid::{KeyboardReport, HID_KB_CHANNEL};
+use crate::hid::{ConsumerReport, KeyboardReport, HID_CONSUMER_CHANNEL, HID_KB_CHANNEL};
 use crate::mouse::MouseHandler;
 use crate::rgb_leds::{AnimCommand, ANIM_CHANNEL};
 use crate::side::SIDE_CHANNEL;
@@ -81,6 +81,8 @@ pub struct Core<'a> {
     current_layer: usize,
     /// Keyboard HID report
     kb_report: KeyboardReport,
+    /// Consumer Control HID report
+    consumer_report: ConsumerReport,
     /// Mouse handler
     mouse: MouseHandler,
     /// HID mouse writer
@@ -101,6 +103,7 @@ impl<'a> Core<'a> {
             layout: Layout::new(&LAYERS),
             current_layer: 0,
             kb_report: KeyboardReport::default(),
+            consumer_report: ConsumerReport::default(),
             mouse: MouseHandler::new(),
             hid_mouse_writer,
             auto_mouse_timeout: 0,
@@ -188,13 +191,20 @@ impl<'a> Core<'a> {
         let custom_event = self.layout.tick();
         let new_layer = self.layout.current_layer();
         self.process_custom_event(custom_event).await;
-        let new_kb_report = generate_hid_kb_report(&mut self.layout);
+        let (new_kb_report, new_consumer_report) = generate_hid_reports(&mut self.layout);
         if new_kb_report != self.kb_report {
             self.kb_report = new_kb_report;
             if HID_KB_CHANNEL.is_full() {
                 error!("HID KB channel is full");
             }
             HID_KB_CHANNEL.send(new_kb_report).await;
+        }
+        if new_consumer_report != self.consumer_report {
+            self.consumer_report = new_consumer_report;
+            if HID_CONSUMER_CHANNEL.is_full() {
+                error!("HID Consumer channel is full");
+            }
+            HID_CONSUMER_CHANNEL.send(new_consumer_report).await;
         }
         if new_layer != self.current_layer {
             info!("Layer: {}", new_layer);
@@ -313,21 +323,42 @@ fn keyboard_report_set_error(report: &mut KeyboardReport, kc: KeyCode) {
     error!("Error: {:?}", Debug2Format(&kc));
 }
 
-/// Generate a HID report from the current layout
-fn generate_hid_kb_report(layout: &mut KBLayout) -> KeyboardReport {
-    let mut report = KeyboardReport::default();
+/// Generate HID reports (keyboard and consumer) from the current layout
+fn generate_hid_reports(layout: &mut KBLayout) -> (KeyboardReport, ConsumerReport) {
+    let mut kb_report = KeyboardReport::default();
+    let mut consumer_report = ConsumerReport::default();
+
     for kc in layout.keycodes() {
         use keyberon::key_code::KeyCode::*;
         match kc {
             No => (),
-            ErrorRollOver | PostFail | ErrorUndefined => keyboard_report_set_error(&mut report, kc),
-            kc if kc.is_modifier() => report.modifier |= kc.as_modifier_bit(),
-            _ => report.keycodes[..]
-                .iter_mut()
-                .find(|c| **c == 0)
-                .map(|c| *c = kc as u8)
-                .unwrap_or_else(|| keyboard_report_set_error(&mut report, ErrorRollOver)),
+            ErrorRollOver | PostFail | ErrorUndefined => {
+                keyboard_report_set_error(&mut kb_report, kc)
+            }
+            kc if kc.is_modifier() => kb_report.modifier |= kc.as_modifier_bit(),
+            // Consumer control keys (>= 0xE8)
+            // Map them to consumer usage codes
+            MediaNextSong => consumer_report.usage = 0x00B5,
+            MediaPreviousSong => consumer_report.usage = 0x00B6,
+            MediaPlayPause => consumer_report.usage = 0x00CD,
+            Mute => consumer_report.usage = 0x00E2,
+            VolUp => consumer_report.usage = 0x00E9,
+            VolDown => consumer_report.usage = 0x00EA,
+            // Regular keyboard keys (< 0xE8)
+            _ => {
+                // Only add to keyboard report if it's a valid keycode < 0xE8
+                let kc_value = kc as u8;
+                if kc_value < 0xE8 {
+                    kb_report.keycodes[..]
+                        .iter_mut()
+                        .find(|c| **c == 0)
+                        .map(|c| *c = kc_value)
+                        .unwrap_or_else(|| {
+                            keyboard_report_set_error(&mut kb_report, ErrorRollOver)
+                        });
+                }
+            }
         }
     }
-    report
+    (kb_report, consumer_report)
 }

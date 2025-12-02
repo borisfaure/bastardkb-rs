@@ -1,7 +1,10 @@
 #![no_std]
 #![no_main]
 
-use crate::hid::{hid_kb_writer_handler, KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR};
+use crate::hid::{
+    hid_consumer_writer_handler, hid_kb_writer_handler, CONSUMER_REPORT_DESCRIPTOR,
+    KB_REPORT_DESCRIPTOR, MOUSE_REPORT_DESCRIPTOR,
+};
 use crate::keys::Matrix;
 #[cfg(feature = "cnano")]
 use crate::trackball::Trackball;
@@ -105,6 +108,7 @@ async fn main(spawner: Spawner) {
 
     let state_kb = singleton!(: State = State::new()).unwrap();
     let state_mouse = singleton!(: State = State::new()).unwrap();
+    let state_consumer = singleton!(: State = State::new()).unwrap();
 
     let usb_config = usb::config();
     let mut builder = Builder::new(
@@ -141,12 +145,21 @@ async fn main(spawner: Spawner) {
     };
     let hid_mouse = HidWriter::<_, 7>::new(&mut builder, state_mouse, hidm_config);
 
+    let hidc_config = HidConfig {
+        report_descriptor: CONSUMER_REPORT_DESCRIPTOR,
+        request_handler: None,
+        poll_ms: 60,
+        max_packet_size: 2,
+    };
+    let hid_consumer = HidWriter::<_, 2>::new(&mut builder, state_consumer, hidc_config);
+
     let mut request_handler = hid::HidRequestHandler::new(&spawner);
     let (hid_kb_reader, hid_kb_writer) = hidkb.split();
     let hid_kb_reader_fut = async {
         hid_kb_reader.run(false, &mut request_handler).await;
     };
     spawner.must_spawn(hid_kb_writer_handler(hid_kb_writer));
+    spawner.must_spawn(hid_consumer_writer_handler(hid_consumer));
 
     // Build the builder.
     spawner.must_spawn(usb::run(builder));
