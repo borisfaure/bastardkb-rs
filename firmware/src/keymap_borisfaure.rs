@@ -413,7 +413,7 @@ pub static LAYERS: keyberon::layout::Layers<COLS, ROWS, NB_LAYERS, CustomEvent> 
     }
     { /* 9: MOUSE */
         [ n LGui n n n                   {M1}   {MWC}   n   n   n         t],
-        [ LCtrl n n n n                  {MWC}  {BIW} {MLC} n {MRC}       n],
+        [ LCtrl n n n n                  {MWC}  {BIW} {MLC} {MSE} {MRC}   n],
         [ LShift LAlt n n n              {M2}   {MWC}   n   n   n         n],
         [ n n {NOM} {NOM} {NOM}          {MLC}  {MRC} {MWC} {WHDN} {WHUP} n],
     }
