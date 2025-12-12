@@ -125,8 +125,23 @@ async fn matrix_scanner(
             }
         };
         let is_host = is_host();
+        let matrix_state = {
+            #[cfg(feature = "dilemma")]
+            if !is_right {
+                // disable ghosting on X when shift is pressed
+                let mut state = matrix.scan().await;
+                if state[2][0] && state[2][1] && (state[2][3] || state[3][4]) {
+                    state[2][1] = false;
+                }
+                state
+            } else {
+                matrix.scan().await
+            }
+            #[cfg(not(feature = "dilemma"))]
+            matrix.scan().await
+        };
 
-        for event in debouncer.events(matrix.scan().await).map(transform) {
+        for event in debouncer.events(matrix_state).map(transform) {
             if is_host {
                 if LAYOUT_CHANNEL.is_full() {
                     error!("Layout channel is full");
