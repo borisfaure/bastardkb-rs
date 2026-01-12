@@ -72,9 +72,9 @@ pub enum CustomEvent {
 /// Timeout for the automouse feature: when the mouse is not used for this
 /// amount of time, it will be considered inactive.
 #[cfg(feature = "dilemma")]
-const AUTO_MOUSE_TIMEOUT: usize = 1000;
+const AUTO_MOUSE_TIMEOUT: usize = 10;
 #[cfg(feature = "cnano")]
-const AUTO_MOUSE_TIMEOUT: usize = 250;
+const AUTO_MOUSE_TIMEOUT: usize = 10;
 
 /// Core keyboard/mouse handler
 pub struct Core<'a> {
