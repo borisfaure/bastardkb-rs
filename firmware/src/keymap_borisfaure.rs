@@ -110,8 +110,6 @@ const HT_5_T: Action<CustomEvent> = ht!(l(L_TMUX), k(T));
 
 /// Layer 9 (mouse) when held, or I
 const HT_9_I: Action<CustomEvent> = ht!(l(L_MOUSE), k(I));
-/// Layer 9 (mouse) when held, or R
-const HT_9_R: Action<CustomEvent> = ht!(l(L_MOUSE), k(R));
 
 /// Shift-Insert
 const S_INS: Action<CustomEvent> = m(&[LShift, Insert].as_slice());
@@ -369,7 +367,7 @@ const NOM: Action<CustomEvent> = Action::Custom(NoMouseAction);
 pub static LAYERS: keyberon::layout::Layers<COLS, ROWS, NB_LAYERS, CustomEvent> = keyberon::layout::layout! {
    { /* 0: Coleman-DH */
 [  Q         {HT_W_W}   F          P         {HT_4_B}    {HT_4_K}   L         U  {HT_W_Y}     ;        {MSE}],
-[ {HT_C_A}   {HT_9_R}   S         {HT_5_T}    G           M        {HT_3_N}   E  {HT_9_I}    {HT_C_O}  n],
+[ {HT_C_A}    R         S         {HT_5_T}    G           M        {HT_3_N}   E  {HT_9_I}    {HT_C_O}  n],
 [ {HT_S_Z}   {HT_A_X}   C          D         {HT_3_V}    {HT_3_J}   H         ,  {HT_A_DOT}  {HT_S_SL} n],
 [ {VCAPS}    {VNUM}    {HT_3_ESC} {HT_1_SP}   Tab         Enter    {HT_2_BS} {MWC}   {WHDN}   {WHUP}   n],
     } { /* 1: LOWER */
