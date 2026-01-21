@@ -145,7 +145,7 @@ impl MouseHandler {
                     _ => None,
                 };
                 self.wheel = 0;
-                return res;
+                res
             }
             #[cfg(not(feature = "dilemma"))]
             {
