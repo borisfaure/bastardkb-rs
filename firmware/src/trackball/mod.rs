@@ -306,6 +306,7 @@ impl<'a, I: SpiInstance, M: Mode> Trackball<'a, I, M> {
                                 .send(MouseMove {
                                     dx: burst.dx,
                                     dy: burst.dy,
+                                    pressure: 0,
                                 })
                                 .await;
                             self.last_dx = burst.dx;

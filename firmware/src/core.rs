@@ -72,7 +72,7 @@ pub enum CustomEvent {
 /// Timeout for the automouse feature: when the mouse is not used for this
 /// amount of time, it will be considered inactive.
 #[cfg(feature = "dilemma")]
-const AUTO_MOUSE_TIMEOUT: usize = 10;
+const AUTO_MOUSE_TIMEOUT: usize = 150;
 #[cfg(feature = "cnano")]
 const AUTO_MOUSE_TIMEOUT: usize = 10;
 
@@ -163,7 +163,7 @@ impl<'a> Core<'a> {
     /// Process the state of the keyboard and mouse
     async fn tick(&mut self) {
         // Process all mouse events first since they are time sensitive
-        while let Some(mouse_report) = self.mouse.tick().await {
+        while let Some((mouse_report, has_pressure)) = self.mouse.tick().await {
             let pending_mouse_clicks = mouse_report.buttons != 0;
             // Don't consider wheel movement as mouse activity since it may
             // just be scrolling and not actual mouse movement
@@ -174,7 +174,7 @@ impl<'a> Core<'a> {
                 error!("Failed to send mouse report: {:?}", e);
             }
             let _ = self.hid_mouse_writer.write(&raw).await;
-            if mouse_moved || pending_mouse_clicks {
+            if mouse_moved || pending_mouse_clicks || has_pressure {
                 self.auto_mouse_timeout = AUTO_MOUSE_TIMEOUT;
                 self.on_mouse_active().await;
             }

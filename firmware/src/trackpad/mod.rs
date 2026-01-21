@@ -60,19 +60,25 @@ async fn trackpad_task(spi: TrackpadSpi) {
 
     let mut last_dx = 0_i8;
     let mut last_dy = 0_i8;
+    let mut last_pressure = 0_u8;
     loop {
         match trackpad.get_report().await {
-            Ok(Some((dx, dy))) => {
-                if last_dx != dx || last_dy != dy {
+            Ok(Some((dx, dy, pressure))) => {
+                if last_dx != dx || last_dy != dy || last_pressure != pressure {
                     if MOUSE_MOVE_CHANNEL.is_full() {
                         error!("Mouse move channel is full");
                     }
+                    if pressure != 0 && last_pressure != pressure {
+                        utils::log::info!("Trackpad pressure: {}", pressure);
+                    }
                     last_dx = dx;
                     last_dy = dy;
+                    last_pressure = pressure;
                     MOUSE_MOVE_CHANNEL
                         .send(MouseMove {
                             dx: dx.into(),
                             dy: dy.into(),
+                            pressure,
                         })
                         .await;
                 }

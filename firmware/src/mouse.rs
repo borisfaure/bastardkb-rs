@@ -10,6 +10,8 @@ pub struct MouseMove {
     pub dx: i16,
     /// Delta Y
     pub dy: i16,
+    /// Pressure (0-63 for trackpad, 0 for trackball)
+    pub pressure: u8,
 }
 
 /// Maximum number of movements in the channel
@@ -41,10 +43,20 @@ pub struct MouseHandler {
 
     /// Whether the state has changed
     changed: bool,
+
+    /// Current pressure value (0-63 for trackpad, 0 for trackball)
+    pressure: u8,
 }
 
 /// Threshold to consider the movement as a wheel movement
 const WHEEL_THRESHOLD: i16 = 16;
+
+/// Minimum pressure threshold to maintain mouse mode (dilemma only)
+/// Values range from 0-63
+#[cfg(feature = "dilemma")]
+const PRESSURE_NO_MVMT: u8 = 27;
+#[cfg(feature = "dilemma")]
+const MIN_PRESSURE_MVMT: u8 = 10;
 
 /// Empty mouse report
 const MOUSE_REPORT_EMPTY: MouseReport = MouseReport {
@@ -67,6 +79,7 @@ impl MouseHandler {
             dy: 0,
             wheel: 0,
             changed: false,
+            pressure: 0,
         }
     }
 
@@ -102,14 +115,17 @@ impl MouseHandler {
     }
 
     /// Handle a mouse movement event
-    fn handle_move_event(&mut self, MouseMove { dx, dy }: MouseMove) {
+    fn handle_move_event(&mut self, MouseMove { dx, dy, pressure }: MouseMove) {
         self.dx = dx;
         self.dy = dy;
+        self.pressure = pressure;
         self.changed = true;
     }
 
     /// Compute the state of the mouse. Called every 1ms
-    pub async fn tick(&mut self) -> Option<MouseReport> {
+    /// Returns (MouseReport, has_pressure) where has_pressure indicates if there's
+    /// sufficient pressure on the trackpad to maintain mouse mode without cursor movement
+    pub async fn tick(&mut self) -> Option<(MouseReport, bool)> {
         if let Ok(event) = MOUSE_MOVE_CHANNEL.try_receive() {
             self.handle_move_event(event);
             self.changed = true;
@@ -117,8 +133,25 @@ impl MouseHandler {
         if self.changed && is_host() {
             self.changed = false;
             let hid_report = self.generate_hid_report();
-            self.wheel = 0;
-            Some(hid_report)
+            #[cfg(feature = "dilemma")]
+            {
+                let res = match self.pressure {
+                    // sufficient pressure to maintain mouse mode
+                    p if p >= PRESSURE_NO_MVMT => Some((hid_report, true)),
+                    // insufficient pressure, but allow movement
+                    p if p >= MIN_PRESSURE_MVMT => Some((hid_report, false)),
+                    // no pressure, could be wheel movement only
+                    p if p == 0 && self.wheel != 0 => Some((hid_report, false)),
+                    _ => None,
+                };
+                self.wheel = 0;
+                return res;
+            }
+            #[cfg(not(feature = "dilemma"))]
+            {
+                self.wheel = 0;
+                Some((hid_report, false))
+            }
         } else {
             None
         }

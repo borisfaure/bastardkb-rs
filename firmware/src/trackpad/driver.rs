@@ -90,7 +90,7 @@ impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
         Ok(())
     }
 
-    pub async fn get_report(&mut self) -> Result<Option<(i8, i8)>, SPI::Error> {
+    pub async fn get_report(&mut self) -> Result<Option<(i8, i8, u8)>, SPI::Error> {
         let reading = self.read_data().await?;
         // crate::log::info!("raw reading: {:?}", reading);
 
@@ -101,6 +101,7 @@ impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
         };
 
         let reading = self.scale_reading(reading);
+        let pressure = (reading.z & 0x3f) as u8;
 
         let (mut report_x, mut report_y) = (0, 0);
 
@@ -136,7 +137,7 @@ impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
             }
         }
 
-        Ok(Some((report_y, report_x.saturating_neg())))
+        Ok(Some((report_y, report_x.saturating_neg(), pressure)))
     }
 
     async fn read_data(&mut self) -> Result<Option<Reading>, SPI::Error> {
