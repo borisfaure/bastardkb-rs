@@ -107,7 +107,7 @@ const BEIGE_COLOR: RGB8 = RGB8::new(0x0f, 0x0f, 0x00);
 /// Yellow color, used for QWERTY layer
 const YELLOW_COLOR: RGB8 = RGB8::new(0x40, 0x30, 0x00);
 /// Dark red color, used for MOUSE layer
-const DARK_RED_COLOR: RGB8 = RGB8::new(0x40, 0, 0);
+const DARK_RED_COLOR: RGB8 = RGB8::new(0x10, 0, 0);
 /// White color, used for ERROR layer
 const WHITE_COLOR: RGB8 = RGB8::new(MAX_LIGHT_LEVEL, MAX_LIGHT_LEVEL, MAX_LIGHT_LEVEL);
 
