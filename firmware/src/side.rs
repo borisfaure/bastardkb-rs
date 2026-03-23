@@ -395,7 +395,7 @@ pub async fn init(
     info!("setup complete");
 
     // Spawn the hardware task that maintains 1ms timing
-    spawner.must_spawn(hardware_task(sm));
+    spawner.spawn(hardware_task(sm).unwrap());
     info!("hardware task spawned");
 
     #[cfg(feature = "defmt")]
@@ -408,6 +408,6 @@ pub async fn init(
         protocol_hw,
         status_led,
     );
-    spawner.must_spawn(run(comms));
+    spawner.spawn(run(comms).unwrap());
     info!("protocol task spawned");
 }

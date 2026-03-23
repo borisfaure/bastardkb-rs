@@ -44,7 +44,7 @@ pub fn init(
     )
     .unwrap();
 
-    spawner.must_spawn(trackpad_task(spi));
+    spawner.spawn(trackpad_task(spi).unwrap());
 }
 
 #[embassy_executor::task]

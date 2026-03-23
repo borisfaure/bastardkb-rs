@@ -158,11 +158,11 @@ async fn main(spawner: Spawner) {
     let hid_kb_reader_fut = async {
         hid_kb_reader.run(false, &mut request_handler).await;
     };
-    spawner.must_spawn(hid_kb_writer_handler(hid_kb_writer));
-    spawner.must_spawn(hid_consumer_writer_handler(hid_consumer));
+    spawner.spawn(hid_kb_writer_handler(hid_kb_writer).unwrap());
+    spawner.spawn(hid_consumer_writer_handler(hid_consumer).unwrap());
 
     // Build the builder.
-    spawner.must_spawn(usb::run(builder));
+    spawner.spawn(usb::run(builder).unwrap());
 
     #[cfg(feature = "cnano")]
     let rows = [
@@ -234,7 +234,7 @@ async fn main(spawner: Spawner) {
     );
 
     let core = Core::new(hid_mouse);
-    spawner.must_spawn(core::run(core));
+    spawner.spawn(core::run(core).unwrap());
 
     #[cfg(feature = "dilemma")]
     let encoder = Some((

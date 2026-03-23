@@ -164,5 +164,5 @@ pub fn init(
 ) {
     let ws2812 = Ws2812::new(&mut common, sm0, dma, pin);
 
-    spawner.must_spawn(run(ws2812));
+    spawner.spawn(run(ws2812).unwrap());
 }

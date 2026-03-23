@@ -196,5 +196,5 @@ pub fn init(
     encoder_pins: Option<(Input<'static>, Input<'static>)>,
     is_right: bool,
 ) {
-    spawner.must_spawn(matrix_scanner(matrix, encoder_pins, is_right));
+    spawner.spawn(matrix_scanner(matrix, encoder_pins, is_right).unwrap());
 }

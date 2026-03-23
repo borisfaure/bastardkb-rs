@@ -300,14 +300,14 @@ impl HidRequestHandler<'_> {
     fn caps_lock(&mut self, caps_lock: bool) {
         if self.caps_lock != caps_lock {
             self.caps_lock = caps_lock;
-            self.spawner.must_spawn(caps_lock_change());
+            self.spawner.spawn(caps_lock_change().unwrap());
         }
     }
     /// Set the num lock state. May not have changed.
     fn num_lock(&mut self, num_lock: bool) {
         if self.num_lock != num_lock {
             self.num_lock = num_lock;
-            self.spawner.must_spawn(num_lock_change());
+            self.spawner.spawn(num_lock_change().unwrap());
         }
     }
 }
