@@ -19,7 +19,9 @@ use embassy_rp::{
     pio::{InterruptHandler as PioInterruptHandler, Pio},
     usb::{Driver, InterruptHandler as USBInterruptHandler},
 };
-use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, HidWriter, State};
+use embassy_usb::class::hid::{
+    Config as HidConfig, HidBootProtocol, HidReaderWriter, HidSubclass, HidWriter, State,
+};
 use embassy_usb::Builder;
 #[cfg(not(feature = "defmt"))]
 use panic_halt as _;
@@ -137,6 +139,8 @@ async fn main(spawner: Spawner) {
         request_handler: None,
         poll_ms: 60,
         max_packet_size: 8,
+        hid_subclass: HidSubclass::Boot,
+        hid_boot_protocol: HidBootProtocol::Keyboard,
     };
     let hidkb = HidReaderWriter::<_, 8, 8>::new(&mut builder, state_kb, hidkb_config);
 
@@ -145,6 +149,8 @@ async fn main(spawner: Spawner) {
         request_handler: None,
         poll_ms: 10,
         max_packet_size: 7,
+        hid_subclass: HidSubclass::Boot,
+        hid_boot_protocol: HidBootProtocol::Mouse,
     };
     let hid_mouse = HidWriter::<_, 7>::new(&mut builder, state_mouse, hidm_config);
 
@@ -153,6 +159,8 @@ async fn main(spawner: Spawner) {
         request_handler: None,
         poll_ms: 60,
         max_packet_size: 2,
+        hid_subclass: HidSubclass::No,
+        hid_boot_protocol: HidBootProtocol::None,
     };
     let hid_consumer = HidWriter::<_, 2>::new(&mut builder, state_consumer, hidc_config);
 

@@ -34,7 +34,7 @@ embassy-executor = { version = "0.10", features = ["platform-cortex-m", "executo
 embassy-time = { version = "0.5" }
 embassy-rp = { version = "0.10", features = ["rt", "time-driver", "critical-section-impl", "rp2040",
 "rom-func-cache", "intrinsics", "rom-v2-intrinsics"] }
-embassy-usb = { version = "0.5" }
+embassy-usb = { version = "0.6" }
 embassy-futures = "0.1"
 embassy-usb-logger = "0.6"
 portable-atomic = { version = "1.11", features = ["critical-section"] }
