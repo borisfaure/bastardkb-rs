@@ -1,8 +1,9 @@
 use crate::mouse::{MouseMove, MOUSE_MOVE_CHANNEL};
 use embassy_executor::Spawner;
 use embassy_rp::{
-    dma::AnyChannel,
+    dma,
     gpio::{self, Output},
+    interrupt,
     peripherals::{PIN_20, PIN_21, PIN_22, PIN_23, SPI0},
     spi::{self, Async, Spi},
     Peri,
@@ -27,16 +28,21 @@ pub struct TrackpadPins {
     pub cs: Peri<'static, PIN_21>,
 }
 
-pub fn init(
+pub fn init<TxDma: dma::ChannelInstance, RxDma: dma::ChannelInstance>(
     spawner: &Spawner,
     spi: Peri<'static, SPI0>,
     pins: TrackpadPins,
-    tx_dma: Peri<'static, AnyChannel>,
-    rx_dma: Peri<'static, AnyChannel>,
+    tx_dma: Peri<'static, TxDma>,
+    rx_dma: Peri<'static, RxDma>,
+    irq: impl interrupt::typelevel::Binding<TxDma::Interrupt, dma::InterruptHandler<TxDma>>
+        + interrupt::typelevel::Binding<RxDma::Interrupt, dma::InterruptHandler<RxDma>>
+        + 'static,
 ) {
     let mut config = spi::Config::default();
     config.phase = spi::Phase::CaptureOnSecondTransition;
-    let spi = Spi::new(spi, pins.clk, pins.mosi, pins.miso, tx_dma, rx_dma, config);
+    let spi = Spi::new(
+        spi, pins.clk, pins.mosi, pins.miso, tx_dma, rx_dma, irq, config,
+    );
     let spi = ExclusiveDevice::new(
         spi,
         Output::new(pins.cs, gpio::Level::Low),

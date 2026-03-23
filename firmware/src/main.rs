@@ -13,9 +13,9 @@ use embassy_executor::Spawner;
 #[cfg(feature = "cnano")]
 use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_rp::{
-    bind_interrupts,
+    bind_interrupts, dma,
     gpio::{Input, Level, Output, Pull},
-    peripherals::{PIO0, PIO1, USB},
+    peripherals::{DMA_CH0, DMA_CH1, DMA_CH2, PIO0, PIO1, USB},
     pio::{InterruptHandler as PioInterruptHandler, Pio},
     usb::{Driver, InterruptHandler as USBInterruptHandler},
 };
@@ -85,6 +85,9 @@ bind_interrupts!(struct PioIrq0 {
 });
 bind_interrupts!(struct PioIrq1 {
     PIO1_IRQ_0 => PioInterruptHandler<PIO1>;
+});
+bind_interrupts!(struct DmaIrqs {
+    DMA_IRQ_0 => dma::InterruptHandler<DMA_CH0>, dma::InterruptHandler<DMA_CH1>, dma::InterruptHandler<DMA_CH2>;
 });
 
 #[embassy_executor::main]
@@ -226,7 +229,8 @@ async fn main(spawner: Spawner) {
         &spawner,
         pio0.common,
         pio0.sm0,
-        p.DMA_CH0.into(),
+        p.DMA_CH0,
+        DmaIrqs,
         #[cfg(feature = "cnano")]
         p.PIN_0,
         #[cfg(feature = "dilemma")]
@@ -257,7 +261,9 @@ async fn main(spawner: Spawner) {
         spi_config.frequency = 7_000_000;
         spi_config.polarity = Polarity::IdleHigh;
         spi_config.phase = Phase::CaptureOnSecondTransition;
-        let ball_spi = Spi::new(p.SPI0, sclk, mosi, miso, tx_dma, rx_dma, spi_config);
+        let ball_spi = Spi::new(
+            p.SPI0, sclk, mosi, miso, tx_dma, rx_dma, DmaIrqs, spi_config,
+        );
         let ball = Trackball::new(ball_spi, cs);
 
         spawner.must_spawn(trackball::run(ball));
@@ -272,7 +278,7 @@ async fn main(spawner: Spawner) {
         };
         let tx_dma = p.DMA_CH1;
         let rx_dma = p.DMA_CH2;
-        trackpad::init(&spawner, p.SPI0, pins, tx_dma.into(), rx_dma.into());
+        trackpad::init(&spawner, p.SPI0, pins, tx_dma, rx_dma, DmaIrqs);
     }
 
     info!("let's go!");
