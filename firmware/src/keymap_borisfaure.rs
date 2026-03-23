@@ -377,9 +377,9 @@ pub static LAYERS: keyberon::layout::Layers<COLS, ROWS, NB_LAYERS, CustomEvent> 
         [ n  n  t     t   t         Enter Space  n VolUp VolDown n],
     } { /* 2: RAISE */
         [ {QWERTY}  n    {E_ACU}  {E_CIR}  {E_GRV}      PgUp   {U_GRV}  {I_CIR}  {O_CIR}  Home  t],
-        [ {A_GRV}  '_'    +        &        |           RAlt    Left     Up       Down    Right n],
+        [ {A_GRV}  '_'      +      &        |           RAlt    Left     Up       Down    Right n],
         [ {EURO}   {OE}  {C_CED}  {CAPS}   {NUMLCK}     PgDown  Menu    PScreen  {DOTS}   End   n],
-        [ {VCAPS} {VNUM} Escape   BSpace    Tab         t       t        n        n       n     n],
+        [ {VCAPS} {VNUM}   Stop   BSpace    Tab         t       t        n        n       n     n],
     } { /* 3: NUMBERS Fx */
         [ .  4  5  6  =                       /  F1  F2   F3   F4  t],
         [ 0  1  2  3  -                       *  F5  F6   F7   F8  n],
