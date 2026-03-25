@@ -138,7 +138,7 @@ impl<SPI: SpiDevice, const DIAMETER: u32> Trackpad<SPI, DIAMETER> {
         }
 
         // Filter out small movements below threshold (reduce noise/shadow movements)
-        const MOVEMENT_THRESHOLD: i8 = 2;
+        const MOVEMENT_THRESHOLD: i8 = 3;
         if report_x.abs() < MOVEMENT_THRESHOLD && report_y.abs() < MOVEMENT_THRESHOLD {
             report_x = 0;
             report_y = 0;
