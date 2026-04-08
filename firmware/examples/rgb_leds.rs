@@ -7,7 +7,6 @@
 use utils::log::*;
 
 use embassy_executor::Spawner;
-use embassy_rp::dma::Channel;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{
@@ -15,6 +14,10 @@ use embassy_rp::pio::{
     PioPin, ShiftConfig, ShiftDirection, StateMachine,
 };
 use embassy_rp::{bind_interrupts, clocks, Peri};
+use embassy_rp::{
+    dma::{Channel as DmaChannel, InterruptHandler as DmaInterruptHandler},
+    peripherals::{DMA_CH0, DMA_CH1, DMA_CH2},
+};
 use embassy_time::{Duration, Ticker, Timer};
 use fixed::types::U24F8;
 use fixed_macro::fixed;
@@ -27,17 +30,20 @@ use {defmt_rtt as _, panic_probe as _};
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
 });
+bind_interrupts!(struct DmaIrqs {
+    DMA_IRQ_0 => DmaInterruptHandler<DMA_CH0>, DmaInterruptHandler<DMA_CH1>, DmaInterruptHandler<DMA_CH2>;
+});
 
-pub struct Ws2812<'d, P: Instance, const S: usize, const N: usize, DMA: Channel> {
-    dma: Peri<'d, DMA>,
+pub struct Ws2812<'d, P: Instance, const S: usize, const N: usize> {
+    dma: DmaChannel<'d>,
     sm: StateMachine<'d, P, S>,
 }
 
-impl<'d, P: Instance, const S: usize, const N: usize, DMA: Channel> Ws2812<'d, P, S, N, DMA> {
+impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
     pub fn new(
         pio: &mut Common<'d, P>,
         mut sm: StateMachine<'d, P, S>,
-        dma: Peri<'d, DMA>,
+        dma: DmaChannel<'d>,
         pin: Peri<'d, impl PioPin>,
     ) -> Self {
         // Setup sm0
@@ -86,10 +92,7 @@ impl<'d, P: Instance, const S: usize, const N: usize, DMA: Channel> Ws2812<'d, P
         }
 
         // DMA transfer
-        self.sm
-            .tx()
-            .dma_push(self.dma.reborrow(), &words, false)
-            .await;
+        self.sm.tx().dma_push(&mut self.dma, &words, false).await;
 
         Timer::after_micros(55).await;
     }
@@ -131,7 +134,8 @@ async fn main(_spawner: Spawner) {
      * pin 10 for the dilemma underglow
      */
     let pin = p.PIN_10;
-    let mut ws2812 = Ws2812::new(&mut common, sm0, p.DMA_CH0, pin);
+    let dma_ch = DmaChannel::new(p.DMA_CH0, DmaIrqs);
+    let mut ws2812 = Ws2812::new(&mut common, sm0, dma_ch, pin);
 
     let mut ticker = Ticker::every(Duration::from_millis(10));
     loop {

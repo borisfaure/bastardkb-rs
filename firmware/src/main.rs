@@ -13,7 +13,8 @@ use embassy_executor::Spawner;
 #[cfg(feature = "cnano")]
 use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_rp::{
-    bind_interrupts, dma,
+    bind_interrupts,
+    dma::InterruptHandler as DmaInterruptHandler,
     gpio::{Input, Level, Output, Pull},
     peripherals::{DMA_CH0, DMA_CH1, DMA_CH2, PIO0, PIO1, USB},
     pio::{InterruptHandler as PioInterruptHandler, Pio},
@@ -89,7 +90,7 @@ bind_interrupts!(struct PioIrq1 {
     PIO1_IRQ_0 => PioInterruptHandler<PIO1>;
 });
 bind_interrupts!(struct DmaIrqs {
-    DMA_IRQ_0 => dma::InterruptHandler<DMA_CH0>, dma::InterruptHandler<DMA_CH1>, dma::InterruptHandler<DMA_CH2>;
+    DMA_IRQ_0 => DmaInterruptHandler<DMA_CH0>, DmaInterruptHandler<DMA_CH1>, DmaInterruptHandler<DMA_CH2>;
 });
 
 #[embassy_executor::main]

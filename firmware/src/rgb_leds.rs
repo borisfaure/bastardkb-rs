@@ -2,7 +2,12 @@ use crate::side::SIDE_CHANNEL;
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 use embassy_rp::{
-    clocks, dma, interrupt,
+    clocks,
+    dma::{
+        Channel as DmaChannel, ChannelInstance as DmaChannelInstance,
+        InterruptHandler as DmaInterruptHandler,
+    },
+    interrupt,
     peripherals::PIO0,
     pio::{
         program::pio_file, Common, Config as PioConfig, FifoJoin, Instance, PioPin, ShiftConfig,
@@ -44,7 +49,7 @@ pub static ANIM_CHANNEL: Channel<ThreadModeRawMutex, AnimCommand, NB_EVENTS> = C
 /// WS2812 driver
 pub struct Ws2812<'d, P: Instance, const S: usize, const N: usize> {
     /// DMA channel to push RGB data to the PIO state machine
-    dma: dma::Channel<'d>,
+    dma: DmaChannel<'d>,
     /// PIO state machine to control the WS2812 chain
     sm: StateMachine<'d, P, S>,
 }
@@ -53,7 +58,7 @@ impl<'d, P: Instance, const S: usize, const N: usize> Ws2812<'d, P, S, N> {
     pub fn new(
         pio: &mut Common<'d, P>,
         mut sm: StateMachine<'d, P, S>,
-        dma: dma::Channel<'d>,
+        dma: DmaChannel<'d>,
         pin: Peri<'d, impl PioPin>,
     ) -> Self {
         // Setup sm0
@@ -151,15 +156,15 @@ pub async fn run(mut ws2812: Ws2812<'static, PIO0, 0, NUM_LEDS>) {
 }
 
 /// Run the LED animation control
-pub fn init<D: dma::ChannelInstance>(
+pub fn init<D: DmaChannelInstance>(
     spawner: &Spawner,
     mut common: Common<'static, PIO0>,
     sm0: StateMachine<'static, PIO0, 0>,
     dma: Peri<'static, D>,
-    irq: impl interrupt::typelevel::Binding<D::Interrupt, dma::InterruptHandler<D>> + 'static,
+    irq: impl interrupt::typelevel::Binding<D::Interrupt, DmaInterruptHandler<D>> + 'static,
     pin: Peri<'static, impl PioPin>,
 ) {
-    let dma_ch = dma::Channel::new(dma, irq);
+    let dma_ch = DmaChannel::new(dma, irq);
     let ws2812 = Ws2812::new(&mut common, sm0, dma_ch, pin);
 
     spawner.spawn(run(ws2812).unwrap());
