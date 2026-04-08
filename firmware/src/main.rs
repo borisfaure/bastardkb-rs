@@ -275,7 +275,7 @@ async fn main(spawner: Spawner) {
         );
         let ball = Trackball::new(ball_spi, cs);
 
-        spawner.must_spawn(trackball::run(ball));
+        spawner.spawn(trackball::run(ball).unwrap());
     }
     #[cfg(feature = "dilemma")]
     if is_right {
