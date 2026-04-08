@@ -350,7 +350,7 @@ async fn ping_pong(
     };
 
     // Spawn the hardware task that maintains 1ms timing
-    spawner.spawn(hardware_task(sm)).unwrap();
+    spawner.spawn(hardware_task(sm).unwrap());
 
     #[cfg(feature = "defmt")]
     let name = if is_right { "Right" } else { "Left" };
